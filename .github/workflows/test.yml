@@ -36,6 +36,14 @@ jobs:
       - name: Verify Zig
         run: zig version
 
+      - name: Fetch dependencies
+        run: |
+          for i in 1 2 3; do
+            zig build --fetch && break
+            echo "Fetch attempt $i failed, retrying in 10s..."
+            sleep 10
+          done
+
       - name: Build
         run: zig build
 
