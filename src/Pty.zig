@@ -271,8 +271,10 @@ pub fn poll(self: *Pty, timeout_ms: i32) PollResult {
 
     if (result == 0) return .timeout;
 
-    if (fds[0].revents & std.posix.POLL.HUP != 0) return .hangup;
+    // Check POLLIN before POLLHUP: on Linux, both are set simultaneously
+    // when a child exits with buffered data. Data must be read first.
     if (fds[0].revents & std.posix.POLL.IN != 0) return .ready;
+    if (fds[0].revents & std.posix.POLL.HUP != 0) return .hangup;
     if (fds[0].revents & std.posix.POLL.ERR != 0) return .poll_error;
 
     return .timeout;
