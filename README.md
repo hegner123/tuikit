@@ -1,8 +1,8 @@
 # tuikit
 
-A TUI testing toolkit that lets AI agents and scripts interact with terminal applications programmatically. Built in Zig on [Ghostty's](https://github.com/ghostty-org/ghostty) `ghostty-vt` terminal emulation core — the same VT parser that powers the Ghostty terminal emulator.
+A TUI testing toolkit for programmatic interaction with terminal applications. Built in Zig on [Ghostty's](https://github.com/ghostty-org/ghostty) `ghostty-vt` terminal emulation core.
 
-tuikit spawns TUI programs inside a real PTY with a real terminal emulator, not a mock. Screen state is always accurate because bytes flow through the same VT processing pipeline that a real terminal uses.
+Programs run in a real PTY backed by Ghostty's VT parser, providing accurate screen state including SGR attributes, cursor positioning, and alternate screen buffer support.
 
 ## How It Works
 
@@ -10,12 +10,10 @@ tuikit spawns TUI programs inside a real PTY with a real terminal emulator, not 
 TUI Process → PTY → ghostty-vt Terminal Emulator → Screen Query API → MCP / CLI
 ```
 
-1. A TUI program (htop, vim, your app) runs in a PTY
-2. Its output feeds through Ghostty's VT parser — SGR attributes, cursor movement, alternate screen, all of it
-3. The resulting screen state is queryable: full text, individual cell attributes, cursor position
-4. Input goes back through the PTY: text, key presses with modifiers, resize events
-
-No screen scraping. No regex on ANSI escape codes. The terminal emulator does the parsing.
+1. A TUI program runs in a pseudo-terminal
+2. Output is processed through Ghostty's VT parser
+3. Screen state is queryable: full text, individual cell attributes, cursor position
+4. Input is sent back through the PTY: text, key presses with modifiers, resize events
 
 ## Features
 
