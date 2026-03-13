@@ -11,7 +11,14 @@ env:
 
 jobs:
   test:
-    runs-on: macos-latest
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            zig_os: macos
+          - os: ubuntu-latest
+            zig_os: linux
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -19,9 +26,9 @@ jobs:
         run: |
           ARCH=$(uname -m)
           if [ "$ARCH" = "arm64" ]; then ARCH="aarch64"; fi
-          curl -fsSL "https://ziglang.org/download/${ZIG_VERSION}/zig-${ARCH}-macos-${ZIG_VERSION}.tar.xz" -o zig.tar.xz
+          curl -fsSL "https://ziglang.org/download/${ZIG_VERSION}/zig-${ARCH}-${{ matrix.zig_os }}-${ZIG_VERSION}.tar.xz" -o zig.tar.xz
           tar xf zig.tar.xz
-          echo "$PWD/zig-${ARCH}-macos-${ZIG_VERSION}" >> "$GITHUB_PATH"
+          echo "$PWD/zig-${ARCH}-${{ matrix.zig_os }}-${ZIG_VERSION}" >> "$GITHUB_PATH"
 
       - name: Verify Zig
         run: zig version

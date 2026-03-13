@@ -5,7 +5,11 @@ const posix = std.posix;
 // Platform-specific C imports for PTY operations.
 const c = @cImport({
     @cInclude("sys/ioctl.h");
-    @cInclude("util.h"); // openpty() on macOS
+    if (builtin.os.tag == .linux) {
+        @cInclude("pty.h"); // openpty() on Linux
+    } else {
+        @cInclude("util.h"); // openpty() on macOS
+    }
     @cInclude("termios.h");
 });
 
