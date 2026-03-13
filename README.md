@@ -2,6 +2,11 @@
 
 A TUI testing toolkit for programmatic interaction with terminal applications. Built in Zig on [Ghostty's](https://github.com/ghostty-org/ghostty) `ghostty-vt` terminal emulation core.
 
+## Platforms
+
+- macOS (aarch64, x86_64)
+- Linux (x86_64)
+
 ## Quick Start
 
 ### Install from release
@@ -67,11 +72,6 @@ tuikit --cli --command vim --send "ihello" --wait-for "hello" --screen
 | `--send <text>` | Text to send to stdin |
 | `--wait-for <text>` | Wait until text appears on screen (5s timeout) |
 | `--screen` | Print screen content to stdout |
-
-## Platforms
-
-- macOS (aarch64, x86_64)
-- Linux (x86_64)
 
 ## Features
 
