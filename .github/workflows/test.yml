@@ -17,9 +17,6 @@ jobs:
         with:
           version: '0.15.1'
 
-      - name: Clone Ghostty
-        run: git clone --depth 1 https://github.com/ghostty-org/ghostty.git ../../ghostty
-
       - name: Build
         run: zig build
 

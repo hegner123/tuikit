@@ -5,15 +5,11 @@
     .minimum_zig_version = "0.15.1",
     .dependencies = .{
         // Ghostty terminal emulation core.
-        // Path dependency for development. Before release, switch to URL dependency.
         // Pinned to commit: d4019fa484c821b8d3a1ef73d42357ae8d86f2b7
-        .ghostty = .{ .path = "../../ghostty" },
-
-        // URL dependency for releases:
-        // .ghostty = .{
-        //     .url = "https://github.com/ghostty-org/ghostty/archive/COMMIT.tar.gz",
-        //     .hash = "...",
-        // },
+        .ghostty = .{
+            .url = "https://github.com/ghostty-org/ghostty/archive/d4019fa484c821b8d3a1ef73d42357ae8d86f2b7.tar.gz",
+            .hash = "ghostty-1.3.0-5UdBC6Al-gSjgGY0x7kpSp7GGkylNsymMoPGQ_X_DxFF",
+        },
     },
     .paths = .{
         "build.zig",
