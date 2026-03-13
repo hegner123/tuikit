@@ -12,16 +12,27 @@ env:
   ZIG_VERSION: '0.15.2'
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            zig_os: macos
+            arch: aarch64
+            artifact: macos-aarch64
+          - os: ubuntu-latest
+            zig_os: linux
+            arch: x86_64
+            artifact: linux-x86_64
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Zig
         run: |
-          curl -fsSL "https://ziglang.org/download/${ZIG_VERSION}/zig-x86_64-linux-${ZIG_VERSION}.tar.xz" -o zig.tar.xz
+          curl -fsSL "https://ziglang.org/download/${ZIG_VERSION}/zig-${{ matrix.arch }}-${{ matrix.zig_os }}-${ZIG_VERSION}.tar.xz" -o zig.tar.xz
           tar xf zig.tar.xz
-          echo "$PWD/zig-x86_64-linux-${ZIG_VERSION}" >> "$GITHUB_PATH"
+          echo "$PWD/zig-${{ matrix.arch }}-${{ matrix.zig_os }}-${ZIG_VERSION}" >> "$GITHUB_PATH"
 
       - name: Fetch dependencies
         run: |
@@ -31,22 +42,35 @@ jobs:
             sleep 10
           done
 
-      - name: Build all targets
-        run: |
-          mkdir -p dist
+      - name: Build
+        run: zig build -Doptimize=ReleaseSafe
 
-          zig build -Dtarget=aarch64-macos -Doptimize=ReleaseSafe
-          tar -czf "dist/tuikit-${GITHUB_REF_NAME}-macos-aarch64.tar.gz" -C zig-out/bin tuikit
+      - name: Package
+        run: tar -czf "tuikit-${{ matrix.artifact }}.tar.gz" -C zig-out/bin tuikit
 
-          zig build -Dtarget=x86_64-macos -Doptimize=ReleaseSafe
-          tar -czf "dist/tuikit-${GITHUB_REF_NAME}-macos-x86_64.tar.gz" -C zig-out/bin tuikit
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tuikit-${{ matrix.artifact }}
+          path: tuikit-${{ matrix.artifact }}.tar.gz
 
-          zig build -Dtarget=x86_64-linux -Doptimize=ReleaseSafe
-          tar -czf "dist/tuikit-${GITHUB_REF_NAME}-linux-x86_64.tar.gz" -C zig-out/bin tuikit
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
 
       - name: Create release
         run: |
+          for f in dist/*.tar.gz; do
+            mv "$f" "dist/tuikit-${GITHUB_REF_NAME}-${f#dist/tuikit-}"
+          done
           gh release create "$GITHUB_REF_NAME" dist/*.tar.gz \
+            --repo "$GITHUB_REPOSITORY" \
             --title "$GITHUB_REF_NAME" \
             --generate-notes
         env:
