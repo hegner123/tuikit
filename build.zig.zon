@@ -1,0 +1,23 @@
+.{
+    .name = .tuikit,
+    .version = "0.1.0",
+    .fingerprint = 0xf1b87848d957c852,
+    .minimum_zig_version = "0.15.1",
+    .dependencies = .{
+        // Ghostty terminal emulation core.
+        // Path dependency for development. Before release, switch to URL dependency.
+        // Pinned to commit: d4019fa484c821b8d3a1ef73d42357ae8d86f2b7
+        .ghostty = .{ .path = "../../ghostty" },
+
+        // URL dependency for releases:
+        // .ghostty = .{
+        //     .url = "https://github.com/ghostty-org/ghostty/archive/COMMIT.tar.gz",
+        //     .hash = "...",
+        // },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
