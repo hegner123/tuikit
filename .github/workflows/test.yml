@@ -17,9 +17,6 @@ jobs:
           - os: macos-latest
             zig_os: macos
             arch: aarch64
-          - os: macos-13
-            zig_os: macos
-            arch: x86_64
           - os: ubuntu-latest
             zig_os: linux
             arch: x86_64
