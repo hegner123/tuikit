@@ -19,9 +19,9 @@ jobs:
         run: |
           ARCH=$(uname -m)
           if [ "$ARCH" = "arm64" ]; then ARCH="aarch64"; fi
-          curl -fsSL "https://ziglang.org/download/${ZIG_VERSION}/zig-macos-${ARCH}-${ZIG_VERSION}.tar.xz" -o zig.tar.xz
+          curl -fsSL "https://ziglang.org/download/${ZIG_VERSION}/zig-${ARCH}-macos-${ZIG_VERSION}.tar.xz" -o zig.tar.xz
           tar xf zig.tar.xz
-          echo "$PWD/zig-macos-${ARCH}-${ZIG_VERSION}" >> "$GITHUB_PATH"
+          echo "$PWD/zig-${ARCH}-macos-${ZIG_VERSION}" >> "$GITHUB_PATH"
 
       - name: Verify Zig
         run: zig version
