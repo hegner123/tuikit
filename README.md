@@ -2,79 +2,40 @@
 
 A TUI testing toolkit for programmatic interaction with terminal applications. Built in Zig on [Ghostty's](https://github.com/ghostty-org/ghostty) `ghostty-vt` terminal emulation core.
 
-Programs run in a real PTY backed by Ghostty's VT parser, providing accurate screen state including SGR attributes, cursor positioning, and alternate screen buffer support.
+## Quick Start
 
-## How It Works
-
-```
-TUI Process → PTY → ghostty-vt Terminal Emulator → Screen Query API → MCP / CLI
-```
-
-1. A TUI program runs in a pseudo-terminal
-2. Output is processed through Ghostty's VT parser
-3. Screen state is queryable: full text, individual cell attributes, cursor position
-4. Input is sent back through the PTY: text, key presses with modifiers, resize events
-
-## Features
-
-- **Real terminal emulation** — Ghostty's VT parser handles SGR, cursor movement, alternate screen buffer, scrollback
-- **PTY-based** — programs run in a real pseudo-terminal, not a pipe, so they behave exactly as they would in a real terminal
-- **Cell-level inspection** — query individual cell attributes: character, bold, italic, underline, strikethrough, dim, foreground/background color (default, palette, RGB)
-- **Wait conditions** — poll until text appears, screen stabilizes, cursor reaches a position, or process exits
-- **Golden file snapshots** — capture screen state to disk, diff against a baseline on future runs
-- **Session pool** — manage up to 16 concurrent terminal sessions
-- **Keyboard input** — send named keys (enter, tab, escape, arrows, F1-F12) with modifier combinations (ctrl, alt, shift)
-- **Resize** — change terminal dimensions mid-session, delivering SIGWINCH to the child process
-- **MCP server** — JSON-RPC over stdio, compatible with Claude Code and other MCP clients
-- **CLI mode** — standalone command-line interface for scripting
-
-## Platforms
-
-- macOS (aarch64, x86_64)
-- Linux (x86_64)
-
-## Prerequisites
-
-- [Zig 0.15.1+](https://ziglang.org/download/)
-
-Ghostty is fetched automatically by the Zig build system.
-
-## Installation
-
-### From release binaries
-
-Download the latest release from the [releases page](https://github.com/hegner123/tuikit/releases) and extract the binary:
+### Install from release
 
 ```bash
-tar xzf tuikit-v0.1.0-macos-aarch64.tar.gz
+# macOS (Apple Silicon)
+curl -fsSL https://github.com/hegner123/tuikit/releases/latest/download/tuikit-v0.1.0-macos-aarch64.tar.gz | tar xz
+mv tuikit /usr/local/bin/
+
+# Linux (x86_64)
+curl -fsSL https://github.com/hegner123/tuikit/releases/latest/download/tuikit-v0.1.0-linux-x86_64.tar.gz | tar xz
 mv tuikit /usr/local/bin/
 ```
 
-### From source
+### Install from source
+
+Requires [Zig 0.15.1+](https://ziglang.org/download/). Ghostty is fetched automatically.
 
 ```bash
 git clone https://github.com/hegner123/tuikit.git
 cd tuikit
 zig build -Doptimize=ReleaseSafe
-```
-
-Install to `/usr/local/bin`:
-
-```bash
 just install
 ```
 
-## Usage
-
-### MCP Server
-
-Add to Claude Code:
+### Add to Claude Code
 
 ```bash
 claude mcp add tuikit -- tuikit
 ```
 
-Or run directly:
+## Usage
+
+### MCP Server
 
 ```bash
 tuikit
@@ -107,11 +68,31 @@ tuikit --cli --command vim --send "ihello" --wait-for "hello" --screen
 | `--wait-for <text>` | Wait until text appears on screen (5s timeout) |
 | `--screen` | Print screen content to stdout |
 
+## Platforms
+
+- macOS (aarch64, x86_64)
+- Linux (x86_64)
+
+## Features
+
+- **Real terminal emulation** — Ghostty's VT parser handles SGR, cursor movement, alternate screen buffer, scrollback
+- **PTY-based** — programs run in a real pseudo-terminal, behaving exactly as they would in a real terminal
+- **Cell-level inspection** — query individual cell attributes: character, bold, italic, underline, strikethrough, dim, foreground/background color (default, palette, RGB)
+- **Wait conditions** — poll until text appears, screen stabilizes, cursor reaches a position, or process exits
+- **Golden file snapshots** — capture screen state to disk, diff against a baseline on future runs
+- **Session pool** — manage up to 16 concurrent terminal sessions
+- **Keyboard input** — send named keys (enter, tab, escape, arrows, F1-F12) with modifier combinations (ctrl, alt, shift)
+- **Resize** — change terminal dimensions mid-session, delivering SIGWINCH to the child process
+
+## How It Works
+
+```
+TUI Process → PTY → ghostty-vt Terminal Emulator → Screen Query API → MCP / CLI
+```
+
+Programs run in a real PTY backed by Ghostty's VT parser, providing accurate screen state including SGR attributes, cursor positioning, and alternate screen buffer support. Single-threaded with explicit drain — the caller controls when PTY output is consumed and fed to the terminal emulator.
+
 ## Architecture
-
-Single-threaded with explicit drain — no background threads. The caller controls when PTY output is consumed and fed to the terminal emulator.
-
-Key modules:
 
 | Module | Purpose |
 |--------|---------|
