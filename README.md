@@ -60,6 +60,27 @@ Starts a JSON-RPC MCP server on stdin/stdout with these tools:
 | `tui_resize` | Resize terminal and return screen state. Params: `session_id`, `cols`, `rows` (all required), `region`. Returns `text`, `cursor_row`, `cursor_col`, `cols`, `rows`. |
 | `tui_snapshot` | Capture screen snapshot. Params: `session_id` (required), `golden_path` (optional — compares against baseline if provided, creates it if missing). |
 | `tui_stop` | Stop session and get exit code. Params: `session_id` (required). Returns `exit_code`. |
+| `tui_record_start` | Start recording tool calls to a JSONL file. Params: `path` (required). |
+| `tui_record_stop` | Stop recording and close the file. No params. |
+
+### Replay
+
+```bash
+tuikit replay test.jsonl
+```
+
+Replays a recorded JSONL session and reports pass/fail for each entry. Action tools (`tui_start`, `tui_send`, `tui_screen`, `tui_cell`, `tui_resize`) are re-executed without comparison. Assertion tools (`tui_wait`, `tui_stop`, `tui_snapshot`) compare key result fields against the recorded values.
+
+Exits 0 if all assertions pass, 1 if any fail. Single-session recordings only (one `tui_start` per file).
+
+JSONL format — one JSON object per line:
+
+```jsonl
+{"tool":"tui_start","args":{"command":"myapp"},"result":{"session_id":0,"text":"..."}}
+{"tool":"tui_send","args":{"session_id":0,"keys":["down*3","enter"]},"result":{"text":"..."}}
+{"tool":"tui_wait","args":{"session_id":0,"text":"Settings"},"result":{"matched":true,"text":"..."}}
+{"tool":"tui_stop","args":{"session_id":0},"result":{"exit_code":0}}
+```
 
 ### CLI
 
@@ -88,6 +109,7 @@ tuikit --cli --command vim --send "ihello" --wait-for "hello" --screen
 - **Auto-screen** — `tui_start`, `tui_send`, `tui_wait`, and `tui_resize` return screen state in every response
 - **Region cropping** — return only a portion of the screen with the `region` parameter to reduce token usage
 - **Resize** — change terminal dimensions mid-session, delivering SIGWINCH to the child process
+- **Record/replay** — record an agent's MCP tool calls to JSONL, replay them as a repeatable test suite with `tuikit replay`
 
 ### Key Token Syntax
 
@@ -137,6 +159,8 @@ Programs run in a real PTY backed by Ghostty's VT parser, providing accurate scr
 | `input.zig` | Key encoding using Ghostty's input system |
 | `mcp.zig` | JSON-RPC message parsing and serialization |
 | `tools.zig` | MCP tool definitions, dispatch, and handlers |
+| `record.zig` | JSONL recorder for tool call capture |
+| `replay.zig` | Replay engine: load, execute, compare, report |
 
 ## Contributing
 

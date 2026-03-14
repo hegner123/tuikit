@@ -8,6 +8,7 @@ const screen_mod = @import("screen.zig");
 const wait_mod = @import("wait.zig");
 const snapshot_mod = @import("snapshot.zig");
 const input = @import("input.zig");
+const record_mod = @import("record.zig");
 const JsonValue = mcp.JsonValue;
 
 // --- Public types ---
@@ -68,6 +69,8 @@ const tool_defs = [_]ToolDef{
     .{ .name = "tui_resize", .description = "Resize terminal and return screen state" },
     .{ .name = "tui_snapshot", .description = "Capture or compare a screen snapshot" },
     .{ .name = "tui_stop", .description = "Stop a session and get exit code" },
+    .{ .name = "tui_record_start", .description = "Start recording tool calls to a JSONL file" },
+    .{ .name = "tui_record_stop", .description = "Stop recording and close the file" },
 };
 
 // --- Step 6.2.1: toolList ---
@@ -145,6 +148,11 @@ fn inputSchema(alloc: Allocator, tool_name: []const u8) !JsonValue {
     } else if (std.mem.eql(u8, tool_name, "tui_stop")) {
         try addProp(&props, alloc, "session_id", "integer", "Session ID");
         try required.append(.{ .string = "session_id" });
+    } else if (std.mem.eql(u8, tool_name, "tui_record_start")) {
+        try addProp(&props, alloc, "path", "string", "File path for JSONL recording");
+        try required.append(.{ .string = "path" });
+    } else if (std.mem.eql(u8, tool_name, "tui_record_stop")) {
+        // No params.
     }
 
     var schema = json.ObjectMap.init(alloc);
@@ -192,12 +200,15 @@ fn addRegionProp(props: *json.ObjectMap, alloc: Allocator) !void {
 /// - tool_name matches a known tool
 pub fn dispatch(
     pool: *SessionPool,
+    recording_state: *record_mod.RecordingState,
     alloc: Allocator,
     tool_name: []const u8,
     args: JsonValue,
 ) !JsonValue {
     std.debug.assert(tool_name.len > 0);
 
+    if (std.mem.eql(u8, tool_name, "tui_record_start")) return handleRecordStart(recording_state, alloc, args);
+    if (std.mem.eql(u8, tool_name, "tui_record_stop")) return handleRecordStop(recording_state, alloc);
     if (std.mem.eql(u8, tool_name, "tui_start")) return handleStart(pool, alloc, args);
     if (std.mem.eql(u8, tool_name, "tui_send")) return handleSend(pool, alloc, args);
     if (std.mem.eql(u8, tool_name, "tui_screen")) return handleScreen(pool, alloc, args);
@@ -208,6 +219,46 @@ pub fn dispatch(
     if (std.mem.eql(u8, tool_name, "tui_stop")) return handleStop(pool, alloc, args);
 
     return jsonError(alloc, "unknown tool");
+}
+
+// --- Step 2.2: Record handlers ---
+
+fn handleRecordStart(
+    state: *record_mod.RecordingState,
+    alloc: Allocator,
+    args: JsonValue,
+) !JsonValue {
+    const obj = if (args == .object) args.object else return jsonError(alloc, "invalid args");
+
+    const path = if (obj.get("path")) |v| switch (v) {
+        .string => |s| s,
+        else => return jsonError(alloc, "path must be string"),
+    } else return jsonError(alloc, "missing path");
+
+    record_mod.startRecording(state, path) catch |err| switch (err) {
+        record_mod.RecordError.AlreadyRecording => return jsonError(alloc, "already recording — call tui_record_stop first"),
+        record_mod.RecordError.WriteFailed => return jsonError(alloc, "failed to create recording file"),
+        else => return jsonError(alloc, "recording error"),
+    };
+
+    var result = json.ObjectMap.init(alloc);
+    try result.put("ok", .{ .bool = true });
+    try result.put("path", .{ .string = path });
+    return .{ .object = result };
+}
+
+fn handleRecordStop(
+    state: *record_mod.RecordingState,
+    alloc: Allocator,
+) !JsonValue {
+    record_mod.stopRecording(state) catch |err| switch (err) {
+        record_mod.RecordError.NotRecording => return jsonError(alloc, "not recording"),
+        else => return jsonError(alloc, "recording error"),
+    };
+
+    var result = json.ObjectMap.init(alloc);
+    try result.put("ok", .{ .bool = true });
+    return .{ .object = result };
 }
 
 // --- Step 6.3.1: handleStart ---
@@ -913,7 +964,7 @@ test "toolList returns all tools" {
     const result = try toolList(alloc);
     const tools_val = result.object.get("tools").?.array;
 
-    try std.testing.expectEqual(@as(usize, 8), tools_val.items.len);
+    try std.testing.expectEqual(@as(usize, 10), tools_val.items.len);
 }
 
 test "dispatch unknown tool" {
@@ -923,8 +974,44 @@ test "dispatch unknown tool" {
 
     const pool = try SessionPool.init(alloc);
     defer pool.deinit();
+    var rec_state = record_mod.initState();
 
-    const result = try dispatch(pool, alloc, "unknown", .null);
+    const result = try dispatch(pool, &rec_state, alloc, "unknown", .null);
+    try std.testing.expect(result.object.get("error") != null);
+}
+
+test "dispatch tui_record_start with valid path" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    const pool = try SessionPool.init(alloc);
+    defer pool.deinit();
+    var rec_state = record_mod.initState();
+
+    const path = "/tmp/tuikit_test_dispatch_rec.jsonl";
+    defer std.fs.cwd().deleteFile(path) catch {};
+
+    var args_obj = json.ObjectMap.init(alloc);
+    try args_obj.put("path", .{ .string = path });
+
+    const result = try dispatch(pool, &rec_state, alloc, "tui_record_start", .{ .object = args_obj });
+    try std.testing.expect(result.object.get("ok") != null);
+
+    // Clean up — stop recording.
+    _ = try dispatch(pool, &rec_state, alloc, "tui_record_stop", .null);
+}
+
+test "dispatch tui_record_stop when not recording" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    const pool = try SessionPool.init(alloc);
+    defer pool.deinit();
+    var rec_state = record_mod.initState();
+
+    const result = try dispatch(pool, &rec_state, alloc, "tui_record_stop", .null);
     try std.testing.expect(result.object.get("error") != null);
 }
 

@@ -4,6 +4,8 @@ const mcp_mod = @import("mcp.zig");
 const tools_mod = @import("tools.zig");
 const SessionPool = @import("SessionPool.zig");
 const Session = @import("Session.zig");
+const record_mod = @import("record.zig");
+const replay_mod = @import("replay.zig");
 const wait_mod = @import("wait.zig");
 
 pub fn main() !void {
@@ -19,6 +21,13 @@ pub fn main() !void {
 
     const args = try std.process.argsAlloc(base_alloc);
     defer std.process.argsFree(base_alloc, args);
+
+    // Replay mode.
+    if (args.len > 2 and std.mem.eql(u8, args[1], "replay")) {
+        const exit_code = try runReplay(base_alloc, args[2]);
+        if (exit_code != 0) std.process.exit(exit_code);
+        return;
+    }
 
     // CLI mode.
     if (args.len > 1 and std.mem.eql(u8, args[1], "--cli")) {
@@ -37,6 +46,7 @@ fn runMcpServer(base_alloc: std.mem.Allocator) !void {
         pool.destroyAll();
         pool.deinit();
     }
+    var recording_state = record_mod.initState();
 
     // 64KB buffer for stdin — large enough for most MCP requests.
     // Static allocation per TigerStyle.
@@ -77,7 +87,7 @@ fn runMcpServer(base_alloc: std.mem.Allocator) !void {
         };
 
         // Route request.
-        const response = routeRequest(pool, alloc, req) catch {
+        const response = routeRequest(pool, &recording_state, alloc, req) catch {
             const err_resp = mcp_mod.errorResponse(req.id, mcp_mod.err_internal, "internal error");
             const bytes = mcp_mod.serializeResponse(alloc, err_resp) catch continue;
             stdout.writeAll(bytes) catch return;
@@ -93,6 +103,7 @@ fn runMcpServer(base_alloc: std.mem.Allocator) !void {
 
 fn routeRequest(
     pool: *SessionPool,
+    recording_state: *record_mod.RecordingState,
     alloc: std.mem.Allocator,
     req: mcp_mod.Request,
 ) !mcp_mod.Response {
@@ -114,7 +125,7 @@ fn routeRequest(
     }
 
     if (std.mem.eql(u8, req.method, "tools/call")) {
-        return handleToolCall(pool, alloc, req);
+        return handleToolCall(pool, recording_state, alloc, req);
     }
 
     return mcp_mod.errorResponse(req.id, mcp_mod.err_method_not_found, "unknown method");
@@ -122,6 +133,7 @@ fn routeRequest(
 
 fn handleToolCall(
     pool: *SessionPool,
+    recording_state: *record_mod.RecordingState,
     alloc: std.mem.Allocator,
     req: mcp_mod.Request,
 ) !mcp_mod.Response {
@@ -138,7 +150,12 @@ fn handleToolCall(
 
     const args = params.object.get("arguments") orelse .null;
 
-    const result = try tools_mod.dispatch(pool, alloc, tool_name, args);
+    const result = try tools_mod.dispatch(pool, recording_state, alloc, tool_name, args);
+
+    // Record successful tool calls (skip the recording tools themselves).
+    if (!isRecordTool(tool_name)) {
+        record_mod.recordEntry(recording_state, alloc, tool_name, args, result);
+    }
 
     // Wrap in MCP content format.
     var content_obj = std.json.ObjectMap.init(alloc);
@@ -154,6 +171,63 @@ fn handleToolCall(
     try resp_result.put("content", .{ .array = content_arr });
 
     return mcp_mod.successResponse(req.id, .{ .object = resp_result });
+}
+
+fn isRecordTool(name: []const u8) bool {
+    std.debug.assert(name.len > 0);
+    return std.mem.eql(u8, name, "tui_record_start") or
+        std.mem.eql(u8, name, "tui_record_stop");
+}
+
+// --- Step 4.1: Replay mode ---
+
+fn runReplay(base_alloc: std.mem.Allocator, path: []const u8) !u8 {
+    std.debug.assert(path.len > 0);
+
+    var arena = std.heap.ArenaAllocator.init(base_alloc);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    const entries = replay_mod.loadRecording(alloc, path) catch |err| {
+        var err_buf: [4096]u8 = undefined;
+        var err_writer = std.fs.File.stderr().writer(&err_buf);
+        const stderr = &err_writer.interface;
+        stderr.print("ERROR: failed to load {s}: {any}\n", .{ path, err }) catch {};
+        stderr.flush() catch {};
+        return 1;
+    };
+
+    const pool = try SessionPool.init(base_alloc);
+    defer {
+        pool.destroyAll();
+        pool.deinit();
+    }
+
+    var err_buf: [4096]u8 = undefined;
+    var err_writer = std.fs.File.stderr().writer(&err_buf);
+    const stderr = &err_writer.interface;
+    stderr.print("REPLAY: {s}\n", .{path}) catch {};
+    stderr.flush() catch {};
+
+    var out_buf: [4096]u8 = undefined;
+    var out_writer = std.fs.File.stdout().writer(&out_buf);
+    const stdout = &out_writer.interface;
+
+    const summary = try replay_mod.replayAll(pool, alloc, entries);
+
+    for (summary.results) |r| {
+        const line = try replay_mod.formatResult(alloc, r);
+        stdout.writeAll(line) catch {};
+        stdout.writeAll("\n") catch {};
+    }
+
+    const summary_line = try replay_mod.formatSummary(alloc, summary);
+    stdout.writeAll(summary_line) catch {};
+    stdout.writeAll("\n") catch {};
+    stdout.flush() catch {};
+
+    if (summary.failed > 0) return 1;
+    return 0;
 }
 
 // --- Step 6.4.2: CLI mode ---
@@ -240,4 +314,11 @@ test "main smoke test" {
     defer alloc.free(screen_text);
 
     try std.testing.expect(std.mem.indexOf(u8, screen_text, "hello tuikit") != null);
+}
+
+test "isRecordTool identifies record tools" {
+    try std.testing.expect(isRecordTool("tui_record_start"));
+    try std.testing.expect(isRecordTool("tui_record_stop"));
+    try std.testing.expect(!isRecordTool("tui_send"));
+    try std.testing.expect(!isRecordTool("tui_start"));
 }

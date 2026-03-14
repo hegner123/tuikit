@@ -26,6 +26,8 @@ pub const input = @import("input.zig");
 pub const snapshot = @import("snapshot.zig");
 pub const mcp = @import("mcp.zig");
 pub const tools = @import("tools.zig");
+pub const record = @import("record.zig");
+pub const replay = @import("replay.zig");
 
 // Re-export testing helpers for test discovery.
 pub const testing_helpers = @import("testing_helpers.zig");
