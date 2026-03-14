@@ -1,6 +1,6 @@
 .{
     .name = .tuikit,
-    .version = "0.1.0",
+    .version = "0.2.0",
     .fingerprint = 0xf1b87848d957c852,
     .minimum_zig_version = "0.15.1",
     .dependencies = .{

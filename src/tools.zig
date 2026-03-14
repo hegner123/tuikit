@@ -17,15 +17,55 @@ pub const ToolDef = struct {
     description: []const u8,
 };
 
+// --- Key batch constants ---
+
+const keys_max_tokens: u16 = 64;
+const key_token_max_len: u16 = 256;
+const key_repeat_max: u8 = 99;
+const default_settle_ms: u32 = 50;
+
+comptime {
+    std.debug.assert(keys_max_tokens > 0 and keys_max_tokens <= 64);
+    std.debug.assert(key_token_max_len > 0);
+    std.debug.assert(key_repeat_max > 0 and key_repeat_max <= 99);
+    std.debug.assert(default_settle_ms > 0 and default_settle_ms <= 5000);
+}
+
+// --- Key batch types ---
+
+const RepeatResult = struct {
+    base: []const u8,
+    count: u8,
+};
+
+const ModKeyResult = struct {
+    key: input.KeyCode,
+    mods: input.Modifiers,
+};
+
+const KeyAction = union(enum) {
+    text: []const u8,
+    key_press: struct {
+        key: input.KeyCode,
+        mods: input.Modifiers,
+        count: u8,
+    },
+};
+
+const BatchError = struct {
+    message: []const u8,
+    processed: u16,
+};
+
 // --- Constants ---
 
 const tool_defs = [_]ToolDef{
-    .{ .name = "tui_start", .description = "Start a TUI program in a virtual terminal" },
-    .{ .name = "tui_send", .description = "Send text or key input to a session" },
+    .{ .name = "tui_start", .description = "Start a TUI program and return initial screen state" },
+    .{ .name = "tui_send", .description = "Send input and return screen state" },
     .{ .name = "tui_screen", .description = "Get the current screen content" },
     .{ .name = "tui_cell", .description = "Get a single cell's attributes" },
-    .{ .name = "tui_wait", .description = "Wait for a condition (text, stable, cursor, exit)" },
-    .{ .name = "tui_resize", .description = "Resize the terminal" },
+    .{ .name = "tui_wait", .description = "Wait for a condition and return screen state" },
+    .{ .name = "tui_resize", .description = "Resize terminal and return screen state" },
     .{ .name = "tui_snapshot", .description = "Capture or compare a screen snapshot" },
     .{ .name = "tui_stop", .description = "Stop a session and get exit code" },
 };
@@ -59,15 +99,20 @@ fn inputSchema(alloc: Allocator, tool_name: []const u8) !JsonValue {
         try addProp(&props, alloc, "args", "array", "Command arguments");
         try addProp(&props, alloc, "cols", "integer", "Terminal columns (default 80)");
         try addProp(&props, alloc, "rows", "integer", "Terminal rows (default 24)");
+        try addRegionProp(&props, alloc);
         try required.append(.{ .string = "command" });
     } else if (std.mem.eql(u8, tool_name, "tui_send")) {
         try addProp(&props, alloc, "session_id", "integer", "Session ID");
-        try addProp(&props, alloc, "text", "string", "Text to send");
-        try addProp(&props, alloc, "key", "string", "Key name (enter, tab, escape, etc.)");
-        try addProp(&props, alloc, "mods", "array", "Modifier keys [ctrl, alt, shift]");
+        try addProp(&props, alloc, "keys", "array", "Key tokens: key name, mod+key, key*N, text:literal. Prefix text: is reserved.");
+        try addProp(&props, alloc, "settle_ms", "integer", "Wait ms for child to react after input (default 50, max 5000, 0 to skip)");
+        try addProp(&props, alloc, "text", "string", "Text to send (legacy, use keys instead)");
+        try addProp(&props, alloc, "key", "string", "Key name (legacy, use keys instead)");
+        try addProp(&props, alloc, "mods", "array", "Modifier keys [ctrl, alt, shift] (legacy)");
+        try addRegionProp(&props, alloc);
         try required.append(.{ .string = "session_id" });
     } else if (std.mem.eql(u8, tool_name, "tui_screen")) {
         try addProp(&props, alloc, "session_id", "integer", "Session ID");
+        try addRegionProp(&props, alloc);
         try required.append(.{ .string = "session_id" });
     } else if (std.mem.eql(u8, tool_name, "tui_cell")) {
         try addProp(&props, alloc, "session_id", "integer", "Session ID");
@@ -83,11 +128,13 @@ fn inputSchema(alloc: Allocator, tool_name: []const u8) !JsonValue {
         try addProp(&props, alloc, "cursor_row", "integer", "Cursor row to wait for");
         try addProp(&props, alloc, "cursor_col", "integer", "Cursor col to wait for");
         try addProp(&props, alloc, "timeout_ms", "integer", "Timeout in ms (default 5000)");
+        try addRegionProp(&props, alloc);
         try required.append(.{ .string = "session_id" });
     } else if (std.mem.eql(u8, tool_name, "tui_resize")) {
         try addProp(&props, alloc, "session_id", "integer", "Session ID");
         try addProp(&props, alloc, "cols", "integer", "New columns");
         try addProp(&props, alloc, "rows", "integer", "New rows");
+        try addRegionProp(&props, alloc);
         try required.append(.{ .string = "session_id" });
         try required.append(.{ .string = "cols" });
         try required.append(.{ .string = "rows" });
@@ -119,6 +166,22 @@ fn addProp(
     try prop.put("type", .{ .string = typ });
     try prop.put("description", .{ .string = desc });
     try props.put(name, .{ .object = prop });
+}
+
+fn addRegionProp(props: *json.ObjectMap, alloc: Allocator) !void {
+    // Build nested schema: {type: "object", properties: {row, col, width, height}, description: ...}
+    var region_props = json.ObjectMap.init(alloc);
+    try addProp(&region_props, alloc, "row", "integer", "Top row (default 0)");
+    try addProp(&region_props, alloc, "col", "integer", "Left column (default 0)");
+    try addProp(&region_props, alloc, "width", "integer", "Region width (default terminal cols)");
+    try addProp(&region_props, alloc, "height", "integer", "Region height (default terminal rows)");
+
+    var region_schema = json.ObjectMap.init(alloc);
+    try region_schema.put("type", .{ .string = "object" });
+    try region_schema.put("description", .{ .string = "Crop screen to region. Clamped to terminal bounds." });
+    try region_schema.put("properties", .{ .object = region_props });
+
+    try props.put("region", .{ .object = region_schema });
 }
 
 // --- Step 6.2.2: dispatch ---
@@ -189,8 +252,12 @@ fn handleStart(pool: *SessionPool, alloc: Allocator, args: JsonValue) !JsonValue
         .argv = argv_buf[0..argc],
     }) catch return jsonError(alloc, "failed to create session");
 
+    const sess = pool.get(id) catch return jsonError(alloc, "session not found");
+    _ = sess.drainFor(100);
+
     var result = json.ObjectMap.init(alloc);
     try result.put("session_id", .{ .integer = id });
+    try appendScreenFields(&result, sess, alloc, obj);
     return .{ .object = result };
 }
 
@@ -202,34 +269,57 @@ fn handleSend(pool: *SessionPool, alloc: Allocator, args: JsonValue) !JsonValue 
     const session_id = getSessionId(obj) orelse return jsonError(alloc, "missing session_id");
     const sess = pool.get(session_id) catch return jsonError(alloc, "session not found");
 
-    if (obj.get("text")) |v| {
-        if (v == .string) {
-            sess.sendText(v.string) catch return jsonError(alloc, "send failed");
+    // Keys batch path — takes precedence over legacy text/key.
+    if (obj.get("keys")) |kv| {
+        if (kv == .array) {
+            if (kv.array.items.len == 0) return jsonError(alloc, "keys array is empty");
+            if (kv.array.items.len > keys_max_tokens) return jsonError(alloc, "keys array too large");
+
+            if (try executeKeyBatch(sess, kv.array, alloc)) |batch_err| {
+                var err_result = json.ObjectMap.init(alloc);
+                try err_result.put("error", .{ .string = batch_err.message });
+                try err_result.put("processed", .{ .integer = batch_err.processed });
+                return .{ .object = err_result };
+            }
         }
-    }
-
-    if (obj.get("key")) |v| {
-        if (v == .string) {
-            const key = parseKeyCode(v.string) orelse return jsonError(alloc, "unknown key");
-            var mods = input.Modifiers{};
-
-            if (obj.get("mods")) |mv| {
-                if (mv == .array) {
-                    for (mv.array.items) |item| {
-                        if (item == .string) {
-                            if (std.mem.eql(u8, item.string, "ctrl")) mods.ctrl = true;
-                            if (std.mem.eql(u8, item.string, "alt")) mods.alt = true;
-                            if (std.mem.eql(u8, item.string, "shift")) mods.shift = true;
+    } else {
+        // Legacy text/key path — parsing preserved, response shape changed.
+        if (obj.get("text")) |v| {
+            if (v == .string) {
+                sess.sendText(v.string) catch return jsonError(alloc, "send failed");
+            }
+        }
+        if (obj.get("key")) |v| {
+            if (v == .string) {
+                const key = parseKeyCode(v.string) orelse return jsonError(alloc, "unknown key");
+                var mods = input.Modifiers{};
+                if (obj.get("mods")) |mv| {
+                    if (mv == .array) {
+                        for (mv.array.items) |item| {
+                            if (item == .string) {
+                                if (std.mem.eql(u8, item.string, "ctrl")) mods.ctrl = true;
+                                if (std.mem.eql(u8, item.string, "alt")) mods.alt = true;
+                                if (std.mem.eql(u8, item.string, "shift")) mods.shift = true;
+                            }
                         }
                     }
                 }
+                sess.sendKey(key, mods) catch return jsonError(alloc, "sendKey failed");
             }
-
-            sess.sendKey(key, mods) catch return jsonError(alloc, "sendKey failed");
         }
     }
 
-    return jsonOk(alloc);
+    // Settle: let child process react to input.
+    const settle_ms: u32 = if (obj.get("settle_ms")) |v| switch (v) {
+        .integer => |i| @intCast(@min(@max(i, 0), 5000)),
+        else => default_settle_ms,
+    } else default_settle_ms;
+
+    _ = sess.drainFor(settle_ms);
+
+    var result = json.ObjectMap.init(alloc);
+    try appendScreenFields(&result, sess, alloc, obj);
+    return .{ .object = result };
 }
 
 // --- Step 6.3.3: handleScreen ---
@@ -240,18 +330,8 @@ fn handleScreen(pool: *SessionPool, alloc: Allocator, args: JsonValue) !JsonValu
     const session_id = getSessionId(obj) orelse return jsonError(alloc, "missing session_id");
     const sess = pool.get(session_id) catch return jsonError(alloc, "session not found");
 
-    const text = try sess.getScreen(alloc);
-    // Note: text is allocated by alloc — will be freed when the JSON arena is released.
-
-    const pos = sess.terminal.cursorPosition();
-
     var result = json.ObjectMap.init(alloc);
-    try result.put("text", .{ .string = text });
-    try result.put("cursor_row", .{ .integer = pos.row });
-    try result.put("cursor_col", .{ .integer = pos.col });
-    try result.put("cols", .{ .integer = sess.terminal.cols });
-    try result.put("rows", .{ .integer = sess.terminal.rows });
-
+    try appendScreenFields(&result, sess, alloc, obj);
     return .{ .object = result };
 }
 
@@ -336,7 +416,10 @@ fn handleWait(pool: *SessionPool, alloc: Allocator, args: JsonValue) !JsonValue 
     if (obj.get("text")) |v| {
         if (v == .string) {
             const matched = try wait_mod.waitForText(sess, alloc, v.string, timeout_ms);
-            return jsonBool(alloc, matched);
+            var result = json.ObjectMap.init(alloc);
+            try result.put("matched", .{ .bool = matched });
+            try appendScreenFields(&result, sess, alloc, obj);
+            return .{ .object = result };
         }
     }
 
@@ -344,7 +427,10 @@ fn handleWait(pool: *SessionPool, alloc: Allocator, args: JsonValue) !JsonValue 
         if (v == .integer) {
             const stable_ms: u32 = @intCast(@min(@max(v.integer, 10), timeout_ms));
             const matched = try wait_mod.waitForStable(sess, stable_ms, timeout_ms);
-            return jsonBool(alloc, matched);
+            var result = json.ObjectMap.init(alloc);
+            try result.put("matched", .{ .bool = matched });
+            try appendScreenFields(&result, sess, alloc, obj);
+            return .{ .object = result };
         }
     }
 
@@ -354,7 +440,10 @@ fn handleWait(pool: *SessionPool, alloc: Allocator, args: JsonValue) !JsonValue 
                 const row: u16 = @intCast(@min(@max(rv.integer, 0), sess.terminal.rows - 1));
                 const col: u16 = @intCast(@min(@max(cv.integer, 0), sess.terminal.cols - 1));
                 const matched = try wait_mod.waitForCursor(sess, row, col, timeout_ms);
-                return jsonBool(alloc, matched);
+                var result = json.ObjectMap.init(alloc);
+                try result.put("matched", .{ .bool = matched });
+                try appendScreenFields(&result, sess, alloc, obj);
+                return .{ .object = result };
             }
         }
     }
@@ -366,6 +455,7 @@ fn handleWait(pool: *SessionPool, alloc: Allocator, args: JsonValue) !JsonValue 
     if (exit_code) |code| {
         try result.put("exit_code", .{ .integer = code });
     }
+    try appendScreenFields(&result, sess, alloc, obj);
     return .{ .object = result };
 }
 
@@ -393,7 +483,9 @@ fn handleResize(pool: *SessionPool, alloc: Allocator, args: JsonValue) !JsonValu
     sess.pty.setSize(.{ .cols = cols, .rows = rows }) catch
         return jsonError(alloc, "pty resize failed");
 
-    return jsonOk(alloc);
+    var result = json.ObjectMap.init(alloc);
+    try appendScreenFields(&result, sess, alloc, obj);
+    return .{ .object = result };
 }
 
 // --- Step 6.3.7: handleSnapshot ---
@@ -527,6 +619,271 @@ fn parseKeyCode(name: []const u8) ?input.KeyCode {
     return null;
 }
 
+// --- Step 1.1: parseRepeatSuffix ---
+
+/// Extract `*N` repeat count from end of token string.
+/// Returns null for invalid syntax. Returns count=1 if no `*` found.
+///
+/// Assertions:
+/// - token.len > 0
+/// - token.len <= key_token_max_len
+/// Postcondition:
+/// - result.count >= 1 and result.count <= key_repeat_max
+/// - result.base.len > 0
+fn parseRepeatSuffix(token: []const u8) ?RepeatResult {
+    std.debug.assert(token.len > 0);
+    std.debug.assert(token.len <= key_token_max_len);
+
+    const star_pos = std.mem.lastIndexOfScalar(u8, token, '*') orelse {
+        return .{ .base = token, .count = 1 };
+    };
+
+    // Empty base (star at position 0).
+    if (star_pos == 0) return null;
+
+    const digits = token[star_pos + 1 ..];
+
+    // No digits after star.
+    if (digits.len == 0) return null;
+
+    const count = std.fmt.parseInt(u8, digits, 10) catch return null;
+
+    // Zero or exceeds max.
+    if (count == 0 or count > key_repeat_max) return null;
+
+    const result = RepeatResult{ .base = token[0..star_pos], .count = count };
+
+    std.debug.assert(result.base.len > 0);
+    std.debug.assert(result.count >= 1 and result.count <= key_repeat_max);
+
+    return result;
+}
+
+// --- Step 1.2: parseModsAndKey ---
+
+/// Split on `+` to extract modifier prefixes and key name.
+/// Last segment is key name, preceding segments are modifiers.
+///
+/// Assertions:
+/// - base.len > 0
+/// Postcondition:
+/// - returned key is a valid KeyCode
+fn parseModsAndKey(base: []const u8) ?ModKeyResult {
+    std.debug.assert(base.len > 0);
+
+    var mods = input.Modifiers{};
+    var last_segment: []const u8 = "";
+    var segment_count: u16 = 0;
+
+    var iter = std.mem.splitScalar(u8, base, '+');
+    while (iter.next()) |segment| {
+        if (segment_count > 0) {
+            // Previous segment was a modifier — apply it.
+            if (std.mem.eql(u8, last_segment, "ctrl")) {
+                mods.ctrl = true;
+            } else if (std.mem.eql(u8, last_segment, "alt")) {
+                mods.alt = true;
+            } else if (std.mem.eql(u8, last_segment, "shift")) {
+                mods.shift = true;
+            } else {
+                return null; // Unknown modifier.
+            }
+        }
+        last_segment = segment;
+        segment_count += 1;
+    }
+
+    // Last segment is the key name.
+    if (last_segment.len == 0) return null;
+
+    const key = parseKeyCode(last_segment) orelse return null;
+
+    return .{ .key = key, .mods = mods };
+}
+
+// --- Step 1.3: parseKeyToken ---
+
+/// Top-level token parser: dispatches between text literals and key presses.
+///
+/// Assertions:
+/// - token.len > 0
+/// Postcondition:
+/// - if text: text.len > 0
+/// - if key_press: count >= 1
+fn parseKeyToken(token: []const u8) ?KeyAction {
+    std.debug.assert(token.len > 0);
+
+    // Text literal path.
+    if (std.mem.startsWith(u8, token, "text:")) {
+        const payload = token[5..];
+        if (payload.len == 0) return null;
+        if (payload.len > 4096) return null;
+        return .{ .text = payload };
+    }
+
+    // Key press path — enforce key token length limit.
+    if (token.len > key_token_max_len) return null;
+
+    const repeat = parseRepeatSuffix(token) orelse return null;
+    const mod_key = parseModsAndKey(repeat.base) orelse return null;
+
+    return .{ .key_press = .{
+        .key = mod_key.key,
+        .mods = mod_key.mods,
+        .count = repeat.count,
+    } };
+}
+
+// --- Step 2.1: executeKeyBatch ---
+
+/// Process array of key tokens against a session.
+/// Returns null on success, BatchError on parse/send failure.
+/// Only OutOfMemory propagates via error union.
+///
+/// Assertions:
+/// - items.len > 0
+/// - items.len <= keys_max_tokens
+/// Postcondition:
+/// - if null returned, all tokens were dispatched
+fn executeKeyBatch(
+    sess: *Session,
+    keys_array: json.Array,
+    alloc: Allocator,
+) !?BatchError {
+    std.debug.assert(keys_array.items.len > 0);
+    std.debug.assert(keys_array.items.len <= keys_max_tokens);
+
+    var i: u16 = 0;
+    for (keys_array.items) |item| {
+        const token = switch (item) {
+            .string => |s| s,
+            else => return BatchError{ .message = "keys items must be strings", .processed = i },
+        };
+
+        if (token.len == 0) {
+            return BatchError{ .message = "empty key token", .processed = i };
+        }
+
+        const action = parseKeyToken(token) orelse {
+            const msg = try std.fmt.allocPrint(alloc, "invalid key token: {s}", .{token});
+            return BatchError{ .message = msg, .processed = i };
+        };
+
+        switch (action) {
+            .text => |text| {
+                sess.sendText(text) catch {
+                    return BatchError{ .message = "send failed", .processed = i };
+                };
+            },
+            .key_press => |kp| {
+                var rep: u8 = 0;
+                while (rep < kp.count) : (rep += 1) {
+                    sess.sendKey(kp.key, kp.mods) catch {
+                        return BatchError{ .message = "send failed", .processed = i };
+                    };
+                }
+            },
+        }
+        i += 1;
+    }
+
+    std.debug.assert(i == @as(u16, @intCast(keys_array.items.len)));
+    return null;
+}
+
+// --- Step 3.1: parseRegion ---
+
+/// Extract optional region object from JSON args, clamp to terminal bounds.
+///
+/// Assertions:
+/// - terminal_cols > 0
+/// - terminal_rows > 0
+/// Postcondition:
+/// - top + height <= terminal_rows
+/// - left + width <= terminal_cols
+fn parseRegion(
+    obj: json.ObjectMap,
+    terminal_cols: u16,
+    terminal_rows: u16,
+) screen_mod.RegionOpts {
+    std.debug.assert(terminal_cols > 0);
+    std.debug.assert(terminal_rows > 0);
+
+    const region_val = obj.get("region") orelse {
+        return .{ .top = 0, .left = 0, .height = terminal_rows, .width = terminal_cols };
+    };
+
+    const r = switch (region_val) {
+        .object => |o| o,
+        else => return .{ .top = 0, .left = 0, .height = terminal_rows, .width = terminal_cols },
+    };
+
+    // Step 1: Extract with defaults.
+    var row: u16 = getOptU16(r, "row") orelse 0;
+    var col: u16 = getOptU16(r, "col") orelse 0;
+    var height: u16 = getOptU16(r, "height") orelse terminal_rows;
+    var width: u16 = getOptU16(r, "width") orelse terminal_cols;
+
+    // Step 2: Clamp origin.
+    row = @min(row, terminal_rows - 1);
+    col = @min(col, terminal_cols - 1);
+
+    // Step 3: Clamp extent using clamped origin.
+    height = @min(height, terminal_rows - row);
+    width = @min(width, terminal_cols - col);
+
+    const result = screen_mod.RegionOpts{ .top = row, .left = col, .height = height, .width = width };
+    std.debug.assert(@as(u32, result.top) + @as(u32, result.height) <= terminal_rows);
+    std.debug.assert(@as(u32, result.left) + @as(u32, result.width) <= terminal_cols);
+
+    return result;
+}
+
+fn getOptU16(obj: json.ObjectMap, key: []const u8) ?u16 {
+    const v = obj.get(key) orelse return null;
+    return switch (v) {
+        .integer => |i| if (i >= 0 and i <= 500) @intCast(i) else null,
+        else => null,
+    };
+}
+
+// --- Step 3.2: appendScreenFields ---
+
+/// Drain session and append screen state fields to JSON result.
+/// Always uses regionText for consistent output.
+///
+/// Assertions:
+/// - sess.state == .active
+/// Postcondition:
+/// - result contains "text" key
+fn appendScreenFields(
+    result: *json.ObjectMap,
+    sess: *Session,
+    alloc: Allocator,
+    args_obj: json.ObjectMap,
+) !void {
+    std.debug.assert(sess.state == .active);
+
+    _ = sess.drain();
+
+    const opts = parseRegion(args_obj, sess.terminal.cols, sess.terminal.rows);
+
+    const text = if (opts.height > 0 and opts.width > 0)
+        try screen_mod.regionText(&sess.terminal, alloc, opts)
+    else
+        "";
+
+    const pos = sess.terminal.cursorPosition();
+
+    try result.put("text", .{ .string = text });
+    try result.put("cursor_row", .{ .integer = pos.row });
+    try result.put("cursor_col", .{ .integer = pos.col });
+    try result.put("cols", .{ .integer = sess.terminal.cols });
+    try result.put("rows", .{ .integer = sess.terminal.rows });
+}
+
+// --- JSON response helpers ---
+
 fn jsonOk(alloc: Allocator) !JsonValue {
     var result = json.ObjectMap.init(alloc);
     try result.put("ok", .{ .bool = true });
@@ -579,4 +936,247 @@ test "parseKeyCode valid" {
 
 test "parseKeyCode invalid" {
     try std.testing.expect(parseKeyCode("invalid") == null);
+}
+
+// --- Phase 1 tests ---
+
+test "parseRepeatSuffix no star" {
+    const r = parseRepeatSuffix("down").?;
+    try std.testing.expectEqualStrings("down", r.base);
+    try std.testing.expectEqual(@as(u8, 1), r.count);
+}
+
+test "parseRepeatSuffix with count" {
+    const r = parseRepeatSuffix("down*5").?;
+    try std.testing.expectEqualStrings("down", r.base);
+    try std.testing.expectEqual(@as(u8, 5), r.count);
+}
+
+test "parseRepeatSuffix max count" {
+    const r = parseRepeatSuffix("down*99").?;
+    try std.testing.expectEqual(@as(u8, 99), r.count);
+}
+
+test "parseRepeatSuffix zero count" {
+    try std.testing.expect(parseRepeatSuffix("down*0") == null);
+}
+
+test "parseRepeatSuffix over max" {
+    try std.testing.expect(parseRepeatSuffix("down*100") == null);
+}
+
+test "parseRepeatSuffix empty base" {
+    try std.testing.expect(parseRepeatSuffix("*5") == null);
+}
+
+test "parseRepeatSuffix no digits" {
+    try std.testing.expect(parseRepeatSuffix("down*") == null);
+}
+
+test "parseRepeatSuffix with mods" {
+    const r = parseRepeatSuffix("ctrl+a*3").?;
+    try std.testing.expectEqualStrings("ctrl+a", r.base);
+    try std.testing.expectEqual(@as(u8, 3), r.count);
+}
+
+test "parseModsAndKey plain key" {
+    const r = parseModsAndKey("enter").?;
+    try std.testing.expectEqual(input.KeyCode.enter, r.key);
+    try std.testing.expect(!r.mods.ctrl and !r.mods.alt and !r.mods.shift);
+}
+
+test "parseModsAndKey ctrl+c" {
+    const r = parseModsAndKey("ctrl+c").?;
+    try std.testing.expectEqual(input.KeyCode.c, r.key);
+    try std.testing.expect(r.mods.ctrl);
+    try std.testing.expect(!r.mods.alt and !r.mods.shift);
+}
+
+test "parseModsAndKey shift+tab" {
+    const r = parseModsAndKey("shift+tab").?;
+    try std.testing.expectEqual(input.KeyCode.tab, r.key);
+    try std.testing.expect(r.mods.shift);
+}
+
+test "parseModsAndKey ctrl+shift+up" {
+    const r = parseModsAndKey("ctrl+shift+up").?;
+    try std.testing.expectEqual(input.KeyCode.up, r.key);
+    try std.testing.expect(r.mods.ctrl and r.mods.shift);
+}
+
+test "parseModsAndKey trailing plus" {
+    try std.testing.expect(parseModsAndKey("ctrl+") == null);
+}
+
+test "parseModsAndKey unknown key" {
+    try std.testing.expect(parseModsAndKey("unknown") == null);
+}
+
+test "parseModsAndKey unknown modifier" {
+    try std.testing.expect(parseModsAndKey("foo+enter") == null);
+}
+
+test "parseKeyToken text literal" {
+    const action = parseKeyToken("text:hello world").?;
+    switch (action) {
+        .text => |t| try std.testing.expectEqualStrings("hello world", t),
+        .key_press => return error.TestUnexpectedResult,
+    }
+}
+
+test "parseKeyToken empty text" {
+    try std.testing.expect(parseKeyToken("text:") == null);
+}
+
+test "parseKeyToken text asterisk" {
+    const action = parseKeyToken("text:*").?;
+    switch (action) {
+        .text => |t| try std.testing.expectEqualStrings("*", t),
+        .key_press => return error.TestUnexpectedResult,
+    }
+}
+
+test "parseKeyToken plain key" {
+    const action = parseKeyToken("down").?;
+    switch (action) {
+        .key_press => |kp| {
+            try std.testing.expectEqual(input.KeyCode.down, kp.key);
+            try std.testing.expectEqual(@as(u8, 1), kp.count);
+        },
+        .text => return error.TestUnexpectedResult,
+    }
+}
+
+test "parseKeyToken key with repeat" {
+    const action = parseKeyToken("down*5").?;
+    switch (action) {
+        .key_press => |kp| {
+            try std.testing.expectEqual(input.KeyCode.down, kp.key);
+            try std.testing.expectEqual(@as(u8, 5), kp.count);
+        },
+        .text => return error.TestUnexpectedResult,
+    }
+}
+
+test "parseKeyToken ctrl+c" {
+    const action = parseKeyToken("ctrl+c").?;
+    switch (action) {
+        .key_press => |kp| {
+            try std.testing.expectEqual(input.KeyCode.c, kp.key);
+            try std.testing.expect(kp.mods.ctrl);
+            try std.testing.expectEqual(@as(u8, 1), kp.count);
+        },
+        .text => return error.TestUnexpectedResult,
+    }
+}
+
+test "parseKeyToken ctrl+a*3" {
+    const action = parseKeyToken("ctrl+a*3").?;
+    switch (action) {
+        .key_press => |kp| {
+            try std.testing.expectEqual(input.KeyCode.a, kp.key);
+            try std.testing.expect(kp.mods.ctrl);
+            try std.testing.expectEqual(@as(u8, 3), kp.count);
+        },
+        .text => return error.TestUnexpectedResult,
+    }
+}
+
+test "parseKeyToken invalid key" {
+    try std.testing.expect(parseKeyToken("invalid") == null);
+}
+
+// --- Phase 3 tests ---
+
+test "parseRegion absent returns full screen" {
+    var obj = json.ObjectMap.init(std.testing.allocator);
+    defer obj.deinit();
+
+    const r = parseRegion(obj, 80, 24);
+    try std.testing.expectEqual(@as(u16, 0), r.top);
+    try std.testing.expectEqual(@as(u16, 0), r.left);
+    try std.testing.expectEqual(@as(u16, 24), r.height);
+    try std.testing.expectEqual(@as(u16, 80), r.width);
+}
+
+test "parseRegion full screen explicit" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    var region = json.ObjectMap.init(alloc);
+    try region.put("row", .{ .integer = 0 });
+    try region.put("col", .{ .integer = 0 });
+    try region.put("width", .{ .integer = 80 });
+    try region.put("height", .{ .integer = 24 });
+
+    var obj = json.ObjectMap.init(alloc);
+    try obj.put("region", .{ .object = region });
+
+    const r = parseRegion(obj, 80, 24);
+    try std.testing.expectEqual(@as(u16, 0), r.top);
+    try std.testing.expectEqual(@as(u16, 0), r.left);
+    try std.testing.expectEqual(@as(u16, 24), r.height);
+    try std.testing.expectEqual(@as(u16, 80), r.width);
+}
+
+test "parseRegion overflow clamped" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    var region = json.ObjectMap.init(alloc);
+    try region.put("row", .{ .integer = 20 });
+    try region.put("height", .{ .integer = 10 });
+
+    var obj = json.ObjectMap.init(alloc);
+    try obj.put("region", .{ .object = region });
+
+    const r = parseRegion(obj, 80, 24);
+    try std.testing.expectEqual(@as(u16, 20), r.top);
+    try std.testing.expectEqual(@as(u16, 4), r.height);
+}
+
+test "parseRegion row beyond bounds" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    var region = json.ObjectMap.init(alloc);
+    try region.put("row", .{ .integer = 100 });
+
+    var obj = json.ObjectMap.init(alloc);
+    try obj.put("region", .{ .object = region });
+
+    const r = parseRegion(obj, 80, 24);
+    try std.testing.expectEqual(@as(u16, 23), r.top);
+    try std.testing.expectEqual(@as(u16, 1), r.height);
+}
+
+test "parseRegion zero height" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    var region = json.ObjectMap.init(alloc);
+    try region.put("height", .{ .integer = 0 });
+
+    var obj = json.ObjectMap.init(alloc);
+    try obj.put("region", .{ .object = region });
+
+    const r = parseRegion(obj, 80, 24);
+    try std.testing.expectEqual(@as(u16, 0), r.height);
+}
+
+test "parseRegion non-object treated as absent" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    var obj = json.ObjectMap.init(alloc);
+    try obj.put("region", .{ .integer = 42 });
+
+    const r = parseRegion(obj, 80, 24);
+    try std.testing.expectEqual(@as(u16, 24), r.height);
+    try std.testing.expectEqual(@as(u16, 80), r.width);
 }

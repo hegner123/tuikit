@@ -2,6 +2,8 @@
 
 A TUI testing toolkit for programmatic interaction with terminal applications. Built in Zig on [Ghostty's](https://github.com/ghostty-org/ghostty) `ghostty-vt` terminal emulation core.
 
+Developed specifically to test [Bubble Tea](https://github.com/charmbracelet/bubbletea) interfaces agentically — letting AI agents spawn, drive, and assert against TUI applications through MCP without needing a display.
+
 ## Platforms
 
 - macOS (aarch64, x86_64)
@@ -13,11 +15,11 @@ A TUI testing toolkit for programmatic interaction with terminal applications. B
 
 ```bash
 # macOS (Apple Silicon)
-curl -fsSL https://github.com/hegner123/tuikit/releases/latest/download/tuikit-v0.1.0-macos-aarch64.tar.gz | tar xz
+curl -fsSL https://github.com/hegner123/tuikit/releases/latest/download/tuikit-v0.2.0-macos-aarch64.tar.gz | tar xz
 mv tuikit /usr/local/bin/
 
 # Linux (x86_64)
-curl -fsSL https://github.com/hegner123/tuikit/releases/latest/download/tuikit-v0.1.0-linux-x86_64.tar.gz | tar xz
+curl -fsSL https://github.com/hegner123/tuikit/releases/latest/download/tuikit-v0.2.0-linux-x86_64.tar.gz | tar xz
 mv tuikit /usr/local/bin/
 ```
 
@@ -50,12 +52,12 @@ Starts a JSON-RPC MCP server on stdin/stdout with these tools:
 
 | Tool | Description |
 |------|-------------|
-| `tui_start` | Start a TUI program in a virtual terminal. Params: `command` (required), `args`, `cols` (default 80), `rows` (default 24). Returns `session_id`. |
-| `tui_send` | Send input to a session. Params: `session_id` (required), `text`, `key` (named key), `mods` (array of ctrl/alt/shift). |
-| `tui_screen` | Get screen content. Params: `session_id` (required). Returns `text`, `cursor_row`, `cursor_col`, `cols`, `rows`. |
+| `tui_start` | Start a TUI program and return initial screen state. Params: `command` (required), `args`, `cols` (default 80), `rows` (default 24), `region`. Returns `session_id`, `text`, `cursor_row`, `cursor_col`, `cols`, `rows`. |
+| `tui_send` | Send input and return screen state. Params: `session_id` (required), `keys` (array of key tokens), `settle_ms` (default 50), `region`. Legacy: `text`, `key`, `mods`. Returns `text`, `cursor_row`, `cursor_col`, `cols`, `rows`. |
+| `tui_screen` | Get screen content. Params: `session_id` (required), `region`. Returns `text`, `cursor_row`, `cursor_col`, `cols`, `rows`. |
 | `tui_cell` | Inspect a single cell. Params: `session_id`, `row`, `col` (all required). Returns `char`, `bold`, `italic`, `underline`, `strikethrough`, `dim`, `fg`, `bg`. |
-| `tui_wait` | Wait for a condition. Params: `session_id` (required), plus one of: `text`, `stable_ms`, `cursor_row`+`cursor_col`. Optional `timeout_ms` (default 5000, max 30000). |
-| `tui_resize` | Resize terminal. Params: `session_id`, `cols`, `rows` (all required). Sends SIGWINCH to child. |
+| `tui_wait` | Wait for a condition and return screen state. Params: `session_id` (required), plus one of: `text`, `stable_ms`, `cursor_row`+`cursor_col`. Optional `timeout_ms` (default 5000, max 30000), `region`. Returns `matched`, `text`, `cursor_row`, `cursor_col`, `cols`, `rows`. |
+| `tui_resize` | Resize terminal and return screen state. Params: `session_id`, `cols`, `rows` (all required), `region`. Returns `text`, `cursor_row`, `cursor_col`, `cols`, `rows`. |
 | `tui_snapshot` | Capture screen snapshot. Params: `session_id` (required), `golden_path` (optional — compares against baseline if provided, creates it if missing). |
 | `tui_stop` | Stop session and get exit code. Params: `session_id` (required). Returns `exit_code`. |
 
@@ -82,7 +84,35 @@ tuikit --cli --command vim --send "ihello" --wait-for "hello" --screen
 - **Golden file snapshots** — capture screen state to disk, diff against a baseline on future runs
 - **Session pool** — manage up to 16 concurrent terminal sessions
 - **Keyboard input** — send named keys (enter, tab, escape, arrows, F1-F12) with modifier combinations (ctrl, alt, shift)
+- **Key batching** — send multiple keystrokes in a single MCP call with the `keys` array: `["down*5", "enter"]`
+- **Auto-screen** — `tui_start`, `tui_send`, `tui_wait`, and `tui_resize` return screen state in every response
+- **Region cropping** — return only a portion of the screen with the `region` parameter to reduce token usage
 - **Resize** — change terminal dimensions mid-session, delivering SIGWINCH to the child process
+
+### Key Token Syntax
+
+The `keys` parameter on `tui_send` accepts an array of string tokens:
+
+| Token | Meaning |
+|-------|---------|
+| `"enter"` | Single key press |
+| `"ctrl+c"` | Modified key (ctrl, alt, shift) |
+| `"down*5"` | Repeat key 5 times (max 99) |
+| `"ctrl+shift+up"` | Multiple modifiers |
+| `"text:hello world"` | Send literal text |
+| `"text:*"` | Send literal `*` (since `*` is the repeat operator) |
+
+The `text:` prefix is reserved. Max 64 tokens per call, max 99 repeats.
+
+### Region Parameter
+
+Tools that return screen content accept an optional `region` object to crop the output:
+
+```json
+{"region": {"row": 2, "col": 0, "width": 40, "height": 10}}
+```
+
+All fields are optional (defaults: row=0, col=0, width=terminal cols, height=terminal rows). Values are clamped to terminal bounds.
 
 ## How It Works
 
