@@ -179,7 +179,7 @@ pub fn handleInitialize(alloc: Allocator, req: Request) !Response {
 
     var server_info = json.ObjectMap.init(alloc);
     try server_info.put("name", .{ .string = "tuikit" });
-    try server_info.put("version", .{ .string = "0.2.0" });
+    try server_info.put("version", .{ .string = "0.3.0" });
 
     var result = json.ObjectMap.init(alloc);
     try result.put("protocolVersion", .{ .string = "2024-11-05" });

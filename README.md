@@ -15,11 +15,11 @@ Developed specifically to test [Bubble Tea](https://github.com/charmbracelet/bub
 
 ```bash
 # macOS (Apple Silicon)
-curl -fsSL https://github.com/hegner123/tuikit/releases/latest/download/tuikit-v0.2.0-macos-aarch64.tar.gz | tar xz
+curl -fsSL https://github.com/hegner123/tuikit/releases/latest/download/tuikit-v0.3.0-macos-aarch64.tar.gz | tar xz
 mv tuikit /usr/local/bin/
 
 # Linux (x86_64)
-curl -fsSL https://github.com/hegner123/tuikit/releases/latest/download/tuikit-v0.2.0-linux-x86_64.tar.gz | tar xz
+curl -fsSL https://github.com/hegner123/tuikit/releases/latest/download/tuikit-v0.3.0-linux-x86_64.tar.gz | tar xz
 mv tuikit /usr/local/bin/
 ```
 

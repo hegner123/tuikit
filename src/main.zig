@@ -22,20 +22,66 @@ pub fn main() !void {
     const args = try std.process.argsAlloc(base_alloc);
     defer std.process.argsFree(base_alloc, args);
 
-    // Replay mode.
-    if (args.len > 2 and std.mem.eql(u8, args[1], "replay")) {
-        const exit_code = try runReplay(base_alloc, args[2]);
-        if (exit_code != 0) std.process.exit(exit_code);
-        return;
-    }
+    if (args.len > 1) {
+        const arg = args[1];
 
-    // CLI mode.
-    if (args.len > 1 and std.mem.eql(u8, args[1], "--cli")) {
-        return runCli(base_alloc, args[2..]);
+        if (std.mem.eql(u8, arg, "--version") or std.mem.eql(u8, arg, "-v")) {
+            return printVersion();
+        }
+
+        if (std.mem.eql(u8, arg, "--help") or std.mem.eql(u8, arg, "-h")) {
+            return printHelp();
+        }
+
+        if (std.mem.eql(u8, arg, "replay") and args.len > 2) {
+            const exit_code = try runReplay(base_alloc, args[2]);
+            if (exit_code != 0) std.process.exit(exit_code);
+            return;
+        }
+
+        if (std.mem.eql(u8, arg, "--cli")) {
+            return runCli(base_alloc, args[2..]);
+        }
     }
 
     // Default: MCP server mode.
     return runMcpServer(base_alloc);
+}
+
+const version = "0.3.0";
+
+fn printVersion() void {
+    var out_buf: [256]u8 = undefined;
+    var out_writer = std.fs.File.stdout().writer(&out_buf);
+    const stdout = &out_writer.interface;
+    stdout.print("tuikit {s}\n", .{version}) catch {};
+    stdout.flush() catch {};
+}
+
+fn printHelp() void {
+    var out_buf: [4096]u8 = undefined;
+    var out_writer = std.fs.File.stdout().writer(&out_buf);
+    const stdout = &out_writer.interface;
+    stdout.writeAll(
+        \\tuikit — TUI testing toolkit
+        \\
+        \\Usage:
+        \\  tuikit                                    Start MCP server (stdin/stdout)
+        \\  tuikit replay <file.jsonl>                Replay a recorded session
+        \\  tuikit --cli --command <cmd> [options]    Run a single CLI test
+        \\
+        \\Options:
+        \\  -h, --help       Show this help
+        \\  -v, --version    Show version
+        \\
+        \\CLI options:
+        \\  --command <cmd>    Program to run (required)
+        \\  --send <text>      Text to send to stdin
+        \\  --wait-for <text>  Wait until text appears (5s timeout)
+        \\  --screen           Print screen content to stdout
+        \\
+    ) catch {};
+    stdout.flush() catch {};
 }
 
 // --- Step 6.4.1: MCP server mode ---
