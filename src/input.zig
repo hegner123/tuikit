@@ -112,6 +112,8 @@ pub fn encodeKey(key: KeyCode, mods: Modifiers, buffer: []u8) ![]const u8 {
         .cursor_key_application = false,
         .keypad_key_application = false,
         .alt_esc_prefix = true,
+        // On macOS, Option key must be treated as Alt for ESC prefix to work.
+        .macos_option_as_alt = .true,
     };
 
     var writer: std.Io.Writer = .fixed(buffer);
@@ -192,10 +194,12 @@ fn mapMods(mods: Modifiers) GhosttyMods {
     };
 }
 
-/// Generate UTF-8 text for character keys when unmodified or shift-only.
+/// Generate UTF-8 text for character keys.
+/// Ctrl suppresses text (produces control codes from key enum).
+/// Alt preserves text so Ghostty can prepend ESC prefix.
 fn keyToUtf8(key: KeyCode, mods: Modifiers) []const u8 {
-    // Only provide utf8 for unmodified or shift-only presses.
-    if (mods.ctrl or mods.alt) return "";
+    // Ctrl produces control codes — no utf8 text.
+    if (mods.ctrl) return "";
 
     if (mods.shift) {
         return switch (key) {
@@ -321,4 +325,18 @@ test "encodeKey shift+up" {
     try std.testing.expect(result.len > 0);
     // Shift+Up in xterm legacy: ESC[1;2A
     try std.testing.expectEqualStrings("\x1b[1;2A", result);
+}
+
+test "encodeKey alt+b" {
+    var buf: [32]u8 = undefined;
+    const result = try encodeKey(.b, .{ .alt = true }, &buf);
+    // Alt+B with alt_esc_prefix should produce ESC + 'b' (0x1B 0x62).
+    try std.testing.expectEqualStrings("\x1bb", result);
+}
+
+test "encodeKey alt+f" {
+    var buf: [32]u8 = undefined;
+    const result = try encodeKey(.f, .{ .alt = true }, &buf);
+    // Alt+F with alt_esc_prefix should produce ESC + 'f' (0x1B 0x66).
+    try std.testing.expectEqualStrings("\x1bf", result);
 }

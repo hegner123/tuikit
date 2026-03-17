@@ -132,6 +132,9 @@ fn runMcpServer(base_alloc: std.mem.Allocator) !void {
             continue;
         };
 
+        // JSON-RPC notifications have no id — silently ignore per spec.
+        if (req.id == null) continue;
+
         // Route request.
         const response = routeRequest(pool, &recording_state, alloc, req) catch {
             const err_resp = mcp_mod.errorResponse(req.id, mcp_mod.err_internal, "internal error");
@@ -160,11 +163,6 @@ fn routeRequest(
         return mcp_mod.handleInitialize(alloc, req);
     }
 
-    if (std.mem.eql(u8, req.method, "initialized")) {
-        // Client notification — no response required, but MCP expects one.
-        return mcp_mod.successResponse(req.id, .{ .object = .init(alloc) });
-    }
-
     if (std.mem.eql(u8, req.method, "tools/list")) {
         const result = try tools_mod.toolList(alloc);
         return mcp_mod.successResponse(req.id, result);
@@ -172,6 +170,10 @@ fn routeRequest(
 
     if (std.mem.eql(u8, req.method, "tools/call")) {
         return handleToolCall(pool, recording_state, alloc, req);
+    }
+
+    if (std.mem.eql(u8, req.method, "ping")) {
+        return mcp_mod.successResponse(req.id, .{ .object = .init(alloc) });
     }
 
     return mcp_mod.errorResponse(req.id, mcp_mod.err_method_not_found, "unknown method");
