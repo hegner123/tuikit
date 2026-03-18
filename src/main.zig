@@ -12,7 +12,7 @@ pub fn main() !void {
     // DebugAllocator for debug builds (leak detection); page_allocator for release.
     var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
     defer if (builtin.mode == .Debug) {
-        _ = debug_allocator.deinit();
+        if (debug_allocator.deinit() == .leak) @panic("memory leak detected");
     };
     const base_alloc: std.mem.Allocator = if (builtin.mode == .Debug)
         debug_allocator.allocator()
