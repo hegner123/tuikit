@@ -1,4 +1,4 @@
-# ghostty-vt API Reference for tuikit
+# ghostty-vt API Reference for tui-test-ghost
 
 **WARNING:** The ghostty-vt API is alpha and not guaranteed to be stable. Always verify signatures against source before implementing. Do not trust this document blindly.
 
@@ -10,7 +10,7 @@
 
 ## Public Re-exports from lib_vt.zig
 
-Everything below is available via `@import("ghostty-vt")`. The most relevant types for tuikit:
+Everything below is available via `@import("ghostty-vt")`. The most relevant types for tui-test-ghost:
 
 | Export | Type | Source |
 |--------|------|--------|
@@ -111,7 +111,7 @@ pub fn setCursorPos(self: *Terminal, row_req: usize, col_req: usize) void
 pub fn fullReset(self: *Terminal) void
 ```
 
-### Usage Pattern for tuikit
+### Usage Pattern for tui-test-ghost
 
 ```zig
 const vt = @import("ghostty-vt");
@@ -142,7 +142,7 @@ const y = term.screens.active.cursor.y;
 
 **Source:** `terminal/stream_readonly.zig`
 
-A VT stream processor that updates terminal state from byte sequences. Called "readonly" because it only processes state-modifying actions, ignoring queries that require responses (device attributes, cursor position reports, etc.). This is the correct stream type for tuikit since we only render output and never respond.
+A VT stream processor that updates terminal state from byte sequences. Called "readonly" because it only processes state-modifying actions, ignoring queries that require responses (device attributes, cursor position reports, etc.). This is the correct stream type for tui-test-ghost since we only render output and never respond.
 
 `ReadonlyStream` is `stream.Stream(ReadonlyHandler)`.
 
@@ -502,7 +502,7 @@ pub const Options = struct {
 };
 ```
 
-### Usage for tuikit
+### Usage for tui-test-ghost
 
 ```zig
 // Build key encoding options from terminal state
@@ -544,7 +544,7 @@ if (cell_info) |c| {
 
 ---
 
-## Critical Notes for tuikit Implementers
+## Critical Notes for tui-test-ghost Implementers
 
 1. **Terminal.init Options:** `cols`/`rows` are `size.CellCountInt` (u16), `max_scrollback` is `usize`.
 
@@ -554,7 +554,7 @@ if (cell_info) |c| {
 
 4. **Style lookup:** Cell `style_id` of 0 means default style (no lookup needed). Non-zero IDs must be looked up from the page's style set.
 
-5. **ReadonlyStream is the right choice:** It processes all state-modifying VT sequences while ignoring query sequences that would need PTY responses. This is exactly what tuikit needs for headless terminal emulation.
+5. **ReadonlyStream is the right choice:** It processes all state-modifying VT sequences while ignoring query sequences that would need PTY responses. This is exactly what tui-test-ghost needs for headless terminal emulation.
 
 6. **Allocator for ReadonlyStream:** Use `.initAlloc()` (not `.init()`) to enable OSC parsing which requires allocation.
 

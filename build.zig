@@ -4,7 +4,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const run_step = b.step("run", "Run the tuikit MCP server / CLI");
+    const run_step = b.step("run", "Run the tui-test-ghost MCP server / CLI");
     const test_step = b.step("test", "Run all unit tests");
 
     // -- Library module --
@@ -32,24 +32,24 @@ pub fn build(b: *std.Build) void {
 
     // -- Executable --
     const exe = b.addExecutable(.{
-        .name = "tuikit",
+        .name = "tui-test-ghost",
         .root_module = exe_mod,
     });
     b.installArtifact(exe);
 
     // -- Install to /usr/local/bin + ad-hoc codesign --
-    const install_step = b.step("install-bin", "Copy tuikit to /usr/local/bin and codesign");
+    const install_step = b.step("install-bin", "Copy tui-test-ghost to /usr/local/bin and codesign");
     const install_cmd = b.addSystemCommand(&.{
         "/bin/cp",
         "-f",
     });
     install_cmd.addArtifactArg(exe);
-    install_cmd.addArg("/usr/local/bin/tuikit");
+    install_cmd.addArg("/usr/local/bin/tui-test-ghost");
     const codesign_cmd = b.addSystemCommand(&.{
         "codesign",
         "-s",
         "-",
-        "/usr/local/bin/tuikit",
+        "/usr/local/bin/tui-test-ghost",
     });
     codesign_cmd.step.dependOn(&install_cmd.step);
     install_step.dependOn(&codesign_cmd.step);

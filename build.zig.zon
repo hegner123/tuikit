@@ -1,7 +1,7 @@
 .{
-    .name = .tuikit,
+    .name = .tui_test_ghost,
     .version = "0.2.0",
-    .fingerprint = 0xf1b87848d957c852,
+    .fingerprint = 0x3019aba9c51ae2a0,
     .minimum_zig_version = "0.15.1",
     .dependencies = .{
         // Ghostty terminal emulation core.

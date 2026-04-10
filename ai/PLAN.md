@@ -1,4 +1,4 @@
-# tuikit — TUI Testing Toolkit
+# tui-test-ghost — TUI Testing Toolkit
 
 ## Overview
 
@@ -87,7 +87,7 @@ Agents MUST have access to these before implementing any step:
 
 | Agent | File | Use |
 |-------|------|-----|
-| `tuikit-implementer` | `~/.claude/agents-mh/tuikit-implementer.md` | Primary: step implementation (reads step def, loads refs, implements, tests) |
+| `tui-test-ghost-implementer` | `~/.claude/agents-mh/tui-test-ghost-implementer.md` | Primary: step implementation (reads step def, loads refs, implements, tests) |
 | `zig-tiger-style-developer` | `~/.claude/agents-mh/zig-tiger-style-developer.md` | Fallback: general Zig implementation |
 | `zig-specialist` | `~/.claude/agents-mh/zig-specialist.md` | Review |
 
@@ -113,7 +113,7 @@ These are non-negotiable. Every function, every step.
 ## File Structure
 
 ```
-tuikit/
+tui-test-ghost/
 ├── build.zig                 -- Build configuration
 ├── build.zig.zon             -- Dependencies (ghostty-vt)
 ├── PLAN.md                   -- This file
@@ -177,7 +177,7 @@ tuikit/
 #### Phase 0.2: Documentation Extraction
 
 **Step 0.2.1: Create ai/GHOSTTY_API.md**
-- Objective: Extract and document the ghostty-vt API surface relevant to tuikit
+- Objective: Extract and document the ghostty-vt API surface relevant to tui-test-ghost
 - Content:
   - Terminal: init, deinit, vtStream, printString, plainString, resize, fullReset, setAttribute, setCursorPos
   - ReadonlyStream: construction via vtStream(), nextSlice() for feeding bytes
@@ -191,7 +191,7 @@ tuikit/
 - This document is the PRIMARY reference agents use instead of reading Ghostty source every time
 
 **Step 0.2.2: Create CLAUDE.md**
-- Objective: Project-specific instructions for agents working on tuikit
+- Objective: Project-specific instructions for agents working on tui-test-ghost
 - Content: TigerStyle enforcement, file structure, build commands, test commands, documentation pointers, step-by-step workflow instructions
 - Include: "Before implementing any step, read the step definition in PLAN.md AND the referenced source files"
 
@@ -204,7 +204,7 @@ tuikit/
   - `test` — `zig build test`
   - `run` — `zig build run`
   - `fmt` — `zig fmt src/`
-  - `install` — build + codesign + copy to /usr/local/bin/tuikit
+  - `install` — build + codesign + copy to /usr/local/bin/tui-test-ghost
   - `clean` — `rm -rf zig-out .zig-cache`
 - Test: `just build` and `just test` work
 
@@ -221,7 +221,7 @@ tuikit/
 
 ### Milestone 1: Terminal Wrapper
 
-**Goal:** A tuikit-owned Terminal type that wraps ghostty-vt with our query API and TigerStyle assertions.
+**Goal:** A tui-test-ghost-owned Terminal type that wraps ghostty-vt with our query API and TigerStyle assertions.
 
 #### Phase 1.1: Terminal Type
 
@@ -713,7 +713,7 @@ tuikit/
 - Functions:
   - `save(snap: Snapshot, path: []const u8) !void` — write to file
   - `load(alloc: Allocator, path: []const u8) !Snapshot` — read from file
-- Format: Simple text format with header line (`# tuikit snapshot cols=80 rows=24 cursor=0,0`) followed by raw text
+- Format: Simple text format with header line (`# tui-test-ghost snapshot cols=80 rows=24 cursor=0,0`) followed by raw text
 - Assertion: path.len > 0
 - Test: Capture → save → load → compare with original, verify identical.
 
@@ -728,7 +728,7 @@ tuikit/
 
 ### Milestone 6: MCP Server
 
-**Goal:** Expose tuikit as an MCP server over stdio for AI agent consumption.
+**Goal:** Expose tui-test-ghost as an MCP server over stdio for AI agent consumption.
 
 #### Phase 6.1: JSON-RPC Transport
 
@@ -855,9 +855,9 @@ tuikit/
 
 **Step 6.4.2: main.zig — CLI mode**
 - Objective: Direct CLI usage without MCP protocol
-- Flags: `tuikit --cli --command "..." --send "text" --screen --wait-for "text"`
+- Flags: `tui-test-ghost --cli --command "..." --send "text" --screen --wait-for "text"`
 - Simpler interface for shell scripting
-- Test: `tuikit --cli --command "echo hello" --screen` prints screen content.
+- Test: `tui-test-ghost --cli --command "echo hello" --screen` prints screen content.
 
 ---
 
@@ -908,7 +908,7 @@ tuikit/
 - For inclusion in MCP tool documentation tables
 
 **Step 7.3.3: Update terse-mcp README**
-- Add tuikit to the tool inventory
+- Add tui-test-ghost to the tool inventory
 
 ---
 
@@ -917,7 +917,7 @@ tuikit/
 ### For the orchestrating user
 
 1. Execute milestones in order (0 → 7). Phases within a milestone can sometimes parallelize.
-2. Each step is assigned to the `tuikit-implementer` agent with:
+2. Each step is assigned to the `tui-test-ghost-implementer` agent with:
    - The step definition from this plan
    - Pointers to all referenced documentation files
    - The current state of the codebase

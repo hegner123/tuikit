@@ -178,7 +178,7 @@ pub fn handleInitialize(alloc: Allocator, req: Request) !Response {
     try caps.put("tools", .{ .object = tools_cap });
 
     var server_info = json.ObjectMap.init(alloc);
-    try server_info.put("name", .{ .string = "tuikit" });
+    try server_info.put("name", .{ .string = "tui-test-ghost" });
     try server_info.put("version", .{ .string = "0.3.0" });
 
     var result = json.ObjectMap.init(alloc);
@@ -274,6 +274,6 @@ test "handleInitialize response" {
     const response = try handleInitialize(alloc, req);
     const bytes = try serializeResponse(alloc, response);
 
-    try std.testing.expect(std.mem.indexOf(u8, bytes, "tuikit") != null);
+    try std.testing.expect(std.mem.indexOf(u8, bytes, "tui-test-ghost") != null);
     try std.testing.expect(std.mem.indexOf(u8, bytes, "protocolVersion") != null);
 }

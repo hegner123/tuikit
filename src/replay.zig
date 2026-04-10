@@ -345,7 +345,7 @@ test "loadRecording 3-line file" {
     defer arena.deinit();
     const alloc = arena.allocator();
 
-    const path = "/tmp/tuikit_test_load.jsonl";
+    const path = "/tmp/tui-test-ghost_test_load.jsonl";
     defer std.fs.cwd().deleteFile(path) catch {};
 
     const content =
@@ -369,7 +369,7 @@ test "loadRecording empty file" {
     defer arena.deinit();
     const alloc = arena.allocator();
 
-    const path = "/tmp/tuikit_test_load_empty.jsonl";
+    const path = "/tmp/tui-test-ghost_test_load_empty.jsonl";
     defer std.fs.cwd().deleteFile(path) catch {};
 
     const file = try std.fs.cwd().createFile(path, .{});
@@ -384,7 +384,7 @@ test "loadRecording rejects record tools" {
     defer arena.deinit();
     const alloc = arena.allocator();
 
-    const path = "/tmp/tuikit_test_load_rectool.jsonl";
+    const path = "/tmp/tui-test-ghost_test_load_rectool.jsonl";
     defer std.fs.cwd().deleteFile(path) catch {};
 
     const content =
@@ -404,7 +404,7 @@ test "loadRecording rejects multiple sessions" {
     defer arena.deinit();
     const alloc = arena.allocator();
 
-    const path = "/tmp/tuikit_test_load_multi.jsonl";
+    const path = "/tmp/tui-test-ghost_test_load_multi.jsonl";
     defer std.fs.cwd().deleteFile(path) catch {};
 
     const content =

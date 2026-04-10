@@ -14,8 +14,8 @@ fmt:
     zig fmt src/
 
 install: build
-    cp zig-out/bin/tuikit /usr/local/bin/tuikit
-    codesign -s - /usr/local/bin/tuikit
+    cp zig-out/bin/tui-test-ghost /usr/local/bin/tui-test-ghost
+    codesign -s - /usr/local/bin/tui-test-ghost
 
 clean:
     rm -rf zig-out .zig-cache

@@ -148,7 +148,7 @@ pub fn recordEntry(
 // ===== Tests =====
 
 test "init creates active recorder" {
-    const path = "/tmp/tuikit_test_init.jsonl";
+    const path = "/tmp/tui-test-ghost_test_init.jsonl";
     var recorder = try init(path);
     defer {
         recorder.file.close();
@@ -170,7 +170,7 @@ test "writeEntry writes 3 valid JSONL lines" {
     defer arena.deinit();
     const alloc = arena.allocator();
 
-    const path = "/tmp/tuikit_test_write.jsonl";
+    const path = "/tmp/tui-test-ghost_test_write.jsonl";
     var recorder = try init(path);
     defer std.fs.cwd().deleteFile(path) catch {};
 
@@ -204,7 +204,7 @@ test "writeEntry writes 3 valid JSONL lines" {
 }
 
 test "RecordingState lifecycle" {
-    const path = "/tmp/tuikit_test_state.jsonl";
+    const path = "/tmp/tui-test-ghost_test_state.jsonl";
     defer std.fs.cwd().deleteFile(path) catch {};
 
     var state = initState();
@@ -219,13 +219,13 @@ test "RecordingState lifecycle" {
 }
 
 test "double startRecording returns AlreadyRecording" {
-    const path = "/tmp/tuikit_test_double_start.jsonl";
+    const path = "/tmp/tui-test-ghost_test_double_start.jsonl";
     defer std.fs.cwd().deleteFile(path) catch {};
 
     var state = initState();
     try startRecording(&state, path);
 
-    const result = startRecording(&state, "/tmp/tuikit_test_double_start2.jsonl");
+    const result = startRecording(&state, "/tmp/tui-test-ghost_test_double_start2.jsonl");
     try std.testing.expectError(RecordError.AlreadyRecording, result);
 
     try stopRecording(&state);
@@ -242,7 +242,7 @@ test "record round-trip via RecordingState" {
     defer arena.deinit();
     const alloc = arena.allocator();
 
-    const path = "/tmp/tuikit_test_record_roundtrip.jsonl";
+    const path = "/tmp/tui-test-ghost_test_record_roundtrip.jsonl";
     defer std.fs.cwd().deleteFile(path) catch {};
 
     var state = initState();

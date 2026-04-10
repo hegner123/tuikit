@@ -2,7 +2,7 @@ Plan: Record/Replay for TUI Test Sessions
 
  Context
 
- tuikit lets AI agents test Bubble Tea apps via MCP tools. The agent's testing session is ephemeral — once the conversation ends, the test is gone. Record/replay captures the agent's tool
+ tui-test-ghost lets AI agents test Bubble Tea apps via MCP tools. The agent's testing session is ephemeral — once the conversation ends, the test is gone. Record/replay captures the agent's tool
  calls to a JSONL file, then replays them as a repeatable test suite. The agent becomes the test author.
 
  Workflow:
@@ -10,7 +10,7 @@ Plan: Record/Replay for TUI Test Sessions
  2. Agent tests the app normally (tui_start, tui_send, tui_wait, etc.)
  3. Every tool call is logged to the JSONL file
  4. Agent calls tui_record_stop
- 5. Later: tuikit replay test.jsonl re-runs the session and reports pass/fail
+ 5. Later: tui-test-ghost replay test.jsonl re-runs the session and reports pass/fail
 
  Constraint: Recordings are single-session only. One tui_start, one tui_stop. Multi-session recordings are not supported in v1.
 
@@ -357,7 +357,7 @@ Plan: Record/Replay for TUI Test Sessions
  File: src/record.zig test section
 
  1. Create a local RecordingState via initState()
- 2. const path = "/tmp/tuikit_test_record.jsonl";
+ 2. const path = "/tmp/tui-test-ghost_test_record.jsonl";
  3. defer std.fs.cwd().deleteFile(path) catch {};
  4. startRecording(&state, path)
  5. Build 3 entries with JSON args/results, call recordEntry(&state, ...) for each
@@ -390,7 +390,7 @@ Plan: Record/Replay for TUI Test Sessions
 
  - Add tui_record_start and tui_record_stop to MCP tools table
  - Add "Record/Replay" to features list
- - Add tuikit replay <file.jsonl> to CLI section
+ - Add tui-test-ghost replay <file.jsonl> to CLI section
  - Add JSONL format example
  - Document assertion vs action tool categories
  - Document single-session constraint
@@ -421,5 +421,5 @@ Plan: Record/Replay for TUI Test Sessions
  1. zig build test — all tests pass including new record/replay tests
  2. zig build — clean build
  3. Manual record test: start MCP server, call tui_record_start, do some tool calls, call tui_record_stop, verify JSONL file
- 4. Manual replay test: tuikit replay test.jsonl — verify pass/fail output and exit code
+ 4. Manual replay test: tui-test-ghost replay test.jsonl — verify pass/fail output and exit code
  5. CI replay test: record a session against /bin/echo, replay it, verify exit code 0

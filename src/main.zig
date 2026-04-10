@@ -54,7 +54,7 @@ fn printVersion() void {
     var out_buf: [256]u8 = undefined;
     var out_writer = std.fs.File.stdout().writer(&out_buf);
     const stdout = &out_writer.interface;
-    stdout.print("tuikit {s}\n", .{version}) catch {};
+    stdout.print("tui-test-ghost {s}\n", .{version}) catch {};
     stdout.flush() catch {};
 }
 
@@ -63,12 +63,12 @@ fn printHelp() void {
     var out_writer = std.fs.File.stdout().writer(&out_buf);
     const stdout = &out_writer.interface;
     stdout.writeAll(
-        \\tuikit — TUI testing toolkit
+        \\tui-test-ghost — TUI testing toolkit
         \\
         \\Usage:
-        \\  tuikit                                    Start MCP server (stdin/stdout)
-        \\  tuikit replay <file.jsonl>                Replay a recorded session
-        \\  tuikit --cli --command <cmd> [options]    Run a single CLI test
+        \\  tui-test-ghost                                    Start MCP server (stdin/stdout)
+        \\  tui-test-ghost replay <file.jsonl>                Replay a recorded session
+        \\  tui-test-ghost --cli --command <cmd> [options]    Run a single CLI test
         \\
         \\Options:
         \\  -h, --help       Show this help
@@ -286,7 +286,7 @@ fn runCli(alloc: std.mem.Allocator, args: []const []const u8) !void {
     const stdout = &out_writer.interface;
 
     if (args.len == 0) {
-        try stdout.writeAll("Usage: tuikit --cli --command <cmd> [--send <text>] [--screen] [--wait-for <text>]\n");
+        try stdout.writeAll("Usage: tui-test-ghost --cli --command <cmd> [--send <text>] [--screen] [--wait-for <text>]\n");
         return;
     }
 
@@ -356,12 +356,12 @@ test "main smoke test" {
     });
     defer terminal.deinit(alloc);
 
-    try terminal.printString("hello tuikit");
+    try terminal.printString("hello tui-test-ghost");
 
     const screen_text = try terminal.plainString(alloc);
     defer alloc.free(screen_text);
 
-    try std.testing.expect(std.mem.indexOf(u8, screen_text, "hello tuikit") != null);
+    try std.testing.expect(std.mem.indexOf(u8, screen_text, "hello tui-test-ghost") != null);
 }
 
 test "isRecordTool identifies record tools" {

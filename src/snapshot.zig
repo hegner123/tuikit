@@ -28,7 +28,7 @@ pub const SnapshotError = error{
 
 // --- Constants ---
 
-const header_prefix = "# tuikit snapshot";
+const header_prefix = "# tui-test-ghost snapshot";
 
 // --- Step 5.1.1: capture ---
 
@@ -346,7 +346,7 @@ test "save and load round-trip" {
         .text = "hello\nworld",
     };
 
-    const path = "/tmp/tuikit_test_snapshot.txt";
+    const path = "/tmp/tui-test-ghost_test_snapshot.txt";
     try save(original, alloc, path);
 
     var loaded = try load(alloc, path);

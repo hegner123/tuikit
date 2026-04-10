@@ -989,7 +989,7 @@ test "dispatch tui_record_start with valid path" {
     defer pool.deinit();
     var rec_state = record_mod.initState();
 
-    const path = "/tmp/tuikit_test_dispatch_rec.jsonl";
+    const path = "/tmp/tui-test-ghost_test_dispatch_rec.jsonl";
     defer std.fs.cwd().deleteFile(path) catch {};
 
     var args_obj = json.ObjectMap.init(alloc);

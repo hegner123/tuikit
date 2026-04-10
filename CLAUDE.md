@@ -1,4 +1,4 @@
-# tuikit — TUI Testing Toolkit
+# tui-test-ghost — TUI Testing Toolkit
 
 ## What This Is
 
@@ -102,7 +102,7 @@ Full stdlib source: `/Users/home/Documents/Code/Zig/0.15.2/lib/zig/std/`
 
 | Agent | File | When to Use |
 |-------|------|-------------|
-| `tuikit-implementer` | `~/.claude/agents-mh/tuikit-implementer.md` | Primary: implementing plan steps (reads step def, loads refs, implements, tests) |
+| `tui-test-ghost-implementer` | `~/.claude/agents-mh/tui-test-ghost-implementer.md` | Primary: implementing plan steps (reads step def, loads refs, implements, tests) |
 | `zig-tiger-style-developer` | `~/.claude/agents-mh/zig-tiger-style-developer.md` | Fallback: general Zig implementation outside the plan |
 | `zig-specialist` | `~/.claude/agents-mh/zig-specialist.md` | Reviewing completed steps |
 

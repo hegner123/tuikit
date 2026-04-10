@@ -1,6 +1,6 @@
 const ghostty_vt = @import("ghostty-vt");
 
-// tuikit — TUI testing toolkit built on ghostty-vt.
+// tui-test-ghost — TUI testing toolkit built on ghostty-vt.
 // This is the library root. All public API is re-exported from here.
 
 // Verify ghostty-vt linkage at compile time.

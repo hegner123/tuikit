@@ -2,7 +2,7 @@
 
 ## Context
 
-tuikit is a TUI testing toolkit for AI agents to drive Bubble Tea apps via MCP. Currently, navigating a list requires one MCP round-trip per keystroke, and reading the screen requires a separate `tui_screen` call after every action. A typical "navigate down 5 items and select" flow takes 8 round-trips. These three features reduce that to 2.
+tui-test-ghost is a TUI testing toolkit for AI agents to drive Bubble Tea apps via MCP. Currently, navigating a list requires one MCP round-trip per keystroke, and reading the screen requires a separate `tui_screen` call after every action. A typical "navigate down 5 items and select" flow takes 8 round-trips. These three features reduce that to 2.
 
 ## Changes
 

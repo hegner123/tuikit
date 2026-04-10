@@ -1,4 +1,4 @@
-# tuikit
+# tui-test-ghost
 
 A TUI testing toolkit for programmatic interaction with terminal applications. Built in Zig on [Ghostty's](https://github.com/ghostty-org/ghostty) `ghostty-vt` terminal emulation core.
 
@@ -15,12 +15,12 @@ Developed specifically to test [Bubble Tea](https://github.com/charmbracelet/bub
 
 ```bash
 # macOS (Apple Silicon)
-curl -fsSL https://github.com/hegner123/tuikit/releases/latest/download/tuikit-v0.3.0-macos-aarch64.tar.gz | tar xz
-mv tuikit /usr/local/bin/
+curl -fsSL https://github.com/hegner123/tui-test-ghost/releases/latest/download/tui-test-ghost-v0.3.0-macos-aarch64.tar.gz | tar xz
+mv tui-test-ghost /usr/local/bin/
 
 # Linux (x86_64)
-curl -fsSL https://github.com/hegner123/tuikit/releases/latest/download/tuikit-v0.3.0-linux-x86_64.tar.gz | tar xz
-mv tuikit /usr/local/bin/
+curl -fsSL https://github.com/hegner123/tui-test-ghost/releases/latest/download/tui-test-ghost-v0.3.0-linux-x86_64.tar.gz | tar xz
+mv tui-test-ghost /usr/local/bin/
 ```
 
 ### Install from source
@@ -28,8 +28,8 @@ mv tuikit /usr/local/bin/
 Requires [Zig 0.15.1+](https://ziglang.org/download/). Ghostty is fetched automatically.
 
 ```bash
-git clone https://github.com/hegner123/tuikit.git
-cd tuikit
+git clone https://github.com/hegner123/tui-test-ghost.git
+cd tui-test-ghost
 zig build -Doptimize=ReleaseSafe
 just install
 ```
@@ -37,7 +37,7 @@ just install
 ### Add to Claude Code
 
 ```bash
-claude mcp add tuikit -- tuikit
+claude mcp add tui-test-ghost -- tui-test-ghost
 ```
 
 ## Usage
@@ -45,7 +45,7 @@ claude mcp add tuikit -- tuikit
 ### MCP Server
 
 ```bash
-tuikit
+tui-test-ghost
 ```
 
 Starts a JSON-RPC MCP server on stdin/stdout with these tools:
@@ -66,7 +66,7 @@ Starts a JSON-RPC MCP server on stdin/stdout with these tools:
 ### Replay
 
 ```bash
-tuikit replay test.jsonl
+tui-test-ghost replay test.jsonl
 ```
 
 Replays a recorded JSONL session and reports pass/fail for each entry. Action tools (`tui_start`, `tui_send`, `tui_screen`, `tui_cell`, `tui_resize`) are re-executed without comparison. Assertion tools (`tui_wait`, `tui_stop`, `tui_snapshot`) compare key result fields against the recorded values.
@@ -85,8 +85,8 @@ JSONL format — one JSON object per line:
 ### CLI
 
 ```bash
-tuikit --cli --command htop --screen
-tuikit --cli --command vim --send "ihello" --wait-for "hello" --screen
+tui-test-ghost --cli --command htop --screen
+tui-test-ghost --cli --command vim --send "ihello" --wait-for "hello" --screen
 ```
 
 | Flag | Description |
@@ -109,7 +109,7 @@ tuikit --cli --command vim --send "ihello" --wait-for "hello" --screen
 - **Auto-screen** — `tui_start`, `tui_send`, `tui_wait`, and `tui_resize` return screen state in every response
 - **Region cropping** — return only a portion of the screen with the `region` parameter to reduce token usage
 - **Resize** — change terminal dimensions mid-session, delivering SIGWINCH to the child process
-- **Record/replay** — record an agent's MCP tool calls to JSONL, replay them as a repeatable test suite with `tuikit replay`
+- **Record/replay** — record an agent's MCP tool calls to JSONL, replay them as a repeatable test suite with `tui-test-ghost replay`
 
 ### Key Token Syntax
 

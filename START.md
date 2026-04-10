@@ -1,4 +1,4 @@
-# tuikit — Quick Start
+# tui-test-ghost — Quick Start
 
 ## What It Is
 
@@ -61,9 +61,9 @@ zig build run -- --cli --command "cat" --send "hello" --wait-for "hello" --scree
 ## Zig Library Usage
 
 ```zig
-const tuikit = @import("tuikit");
+const tui-test-ghost = @import("tui-test-ghost");
 
-var sess = try tuikit.Session.create(allocator, 0, .{
+var sess = try tui-test-ghost.Session.create(allocator, 0, .{
     .argv = &[_][]const u8{"htop"},
 });
 defer sess.destroy();
